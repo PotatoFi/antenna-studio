@@ -880,23 +880,15 @@ function swapPatterns(plane1, plane2) {
   antennaData[dataKey1] = antennaData[dataKey2];
   antennaData[dataKey2] = tempData;
 
-  // Swap visibility states
-  const tempVisibility = planeVisibility[dataKey1];
-  planeVisibility[dataKey1] = planeVisibility[dataKey2];
-  planeVisibility[dataKey2] = tempVisibility;
+  // Enable visibility for the target plane (plane2)
+  planeVisibility[dataKey2] = true;
 
-  // Update visibility UI
-  const planeToggle1 = document.querySelector(
-    `.plane-toggle[data-plane="${plane1}"]`,
-  );
+  // Update visibility UI for target plane
   const planeToggle2 = document.querySelector(
     `.plane-toggle[data-plane="${plane2}"]`,
   );
-  if (planeToggle1) {
-    planeToggle1.classList.toggle("hidden", !planeVisibility[dataKey1]);
-  }
   if (planeToggle2) {
-    planeToggle2.classList.toggle("hidden", !planeVisibility[dataKey2]);
+    planeToggle2.classList.remove("hidden");
   }
 
   // Redraw
