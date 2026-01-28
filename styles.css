@@ -1,0 +1,591 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+        sans-serif;
+    background: #f5f5f5;
+    color: #333;
+    min-height: 100vh;
+    line-height: 1.6;
+    overflow: hidden;
+}
+
+/* Main Layout - 3D View Focused */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+header {
+    background: #fff;
+    padding: 12px 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+header h1 {
+    font-size: 1.4rem;
+    color: #1976d2;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Toolbar Buttons */
+.toolbar-btn {
+    background: #fff;
+    color: #333;
+    border: 1px solid #ccc;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.toolbar-btn:hover {
+    background: #f0f0f0;
+    border-color: #999;
+}
+
+.toolbar-btn.primary {
+    background: #1976d2;
+    color: #fff;
+    border-color: #1976d2;
+}
+
+.toolbar-btn.primary:hover {
+    background: #1565c0;
+}
+
+.toolbar-btn.success {
+    background: #43a047;
+    color: #fff;
+    border-color: #43a047;
+}
+
+.toolbar-btn.success:hover {
+    background: #388e3c;
+}
+
+/* Main 3D View - Fullscreen */
+.main-view {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+#canvas-3d {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #fafafa;
+    cursor: grab;
+}
+
+#canvas-3d:active {
+    cursor: grabbing;
+}
+
+/* Controls Panel - Floating */
+.controls-panel {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: #fff;
+    border-radius: 6px;
+    padding: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 180px;
+    z-index: 10;
+}
+
+.controls-panel h3 {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-row label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.control-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* Plane toggles with colors */
+.plane-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.plane-toggle .plane-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.plane-toggle .color-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.plane-toggle .color-indicator.azimuth {
+    background: #1976d2;
+}
+.plane-toggle .color-indicator.elevation-xz {
+    background: #43a047;
+}
+.plane-toggle .color-indicator.elevation-yz {
+    background: #fb8c00;
+}
+
+.plane-toggle .plane-name {
+    font-size: 0.85rem;
+}
+
+.plane-toggle .plane-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.plane-toggle button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+    color: #666;
+    border-radius: 3px;
+}
+
+.plane-toggle button:hover {
+    background: #eee;
+    color: #333;
+}
+
+.plane-toggle.hidden {
+    opacity: 0.5;
+}
+
+.plane-toggle.hidden .plane-name {
+    text-decoration: line-through;
+}
+
+/* Small control buttons */
+.small-btn {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.small-btn:hover {
+    background: #e0e0e0;
+}
+
+/* Mount type selector */
+.control-row select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.control-row select:focus {
+    outline: none;
+    border-color: #1976d2;
+}
+
+/* Range slider styling */
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.slider-row label {
+    flex-shrink: 0;
+    font-size: 0.85rem;
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    min-width: 60px;
+}
+
+.slider-row span {
+    min-width: 35px;
+    font-size: 0.8rem;
+    color: #666;
+    text-align: right;
+}
+
+/* Instructions */
+.instructions {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    color: #999;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: hidden;
+    transform: scale(0.95);
+    transition: transform 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-overlay.active .modal {
+    transform: scale(1);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+.modal-header h2 {
+    font-size: 1.2rem;
+    color: #333;
+    margin-right: auto;
+}
+
+.modal-tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.modal-tab {
+    background: #f0f0f0;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #666;
+    transition: all 0.2s;
+}
+
+.modal-tab:hover {
+    background: #e0e0e0;
+}
+
+.modal-tab.active {
+    background: #1976d2;
+    color: #fff;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #999;
+    padding: 0;
+    line-height: 1;
+    margin-left: 10px;
+}
+
+.modal-close:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Patterns Modal */
+.patterns-modal .modal {
+    width: 1100px;
+}
+
+.pattern-inputs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.pattern-input {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+}
+
+.pattern-input h3 {
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pattern-input h3 .color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.pattern-input h3 .color-dot.azimuth {
+    background: #1976d2;
+}
+.pattern-input h3 .color-dot.elevation-xz {
+    background: #43a047;
+}
+.pattern-input h3 .color-dot.elevation-yz {
+    background: #fb8c00;
+}
+
+.pattern-input label {
+    display: block;
+    margin-bottom: 6px;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.pattern-input textarea {
+    width: 100%;
+    height: 150px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #333;
+    padding: 10px;
+    font-family: "Monaco", "Menlo", monospace;
+    font-size: 0.85rem;
+    resize: vertical;
+    margin-bottom: 10px;
+}
+
+.pattern-input textarea:focus {
+    outline: none;
+    border-color: #1976d2;
+}
+
+.load-btn {
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+    width: 100%;
+}
+
+.load-btn:hover {
+    background: #1565c0;
+}
+
+.gain-settings {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.gain-settings h3 {
+    width: 100%;
+    color: #333;
+    font-size: 1rem;
+    margin-bottom: 0;
+}
+
+.gain-settings label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.gain-settings input[type="number"] {
+    width: 80px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #333;
+    padding: 6px 10px;
+}
+
+.gain-settings input[type="number"]:focus {
+    outline: none;
+    border-color: #1976d2;
+}
+
+/* Polar Charts */
+.polar-charts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.polar-chart-container {
+    text-align: center;
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+}
+
+.polar-chart-container h3 {
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 1rem;
+}
+
+.polar-chart-container canvas {
+    background: #fff;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+/* Responsive */
+@media (max-width: 1000px) {
+    .pattern-inputs,
+    .polar-charts {
+        grid-template-columns: 1fr;
+    }
+
+    .patterns-modal .modal {
+        width: 95vw;
+    }
+
+    .modal-header {
+        flex-wrap: wrap;
+    }
+
+    .modal-tabs {
+        order: 3;
+        width: 100%;
+        margin-top: 10px;
+    }
+}
+
+@media (max-width: 600px) {
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .controls-panel {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        min-width: auto;
+    }
+}
