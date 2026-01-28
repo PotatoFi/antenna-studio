@@ -331,6 +331,11 @@ body {
     gap: 4px;
 }
 
+.swap-controls {
+    display: flex;
+    gap: 4px;
+}
+
 .toolbar-button {
     background-color: var(--panel-bg);
     border: none;
@@ -359,29 +364,6 @@ body {
 
 .toolbar-button.blue:hover {
     background-color: var(--button-hover);
-}
-
-/* CSV input textarea */
-.csv-input {
-    width: 100%;
-    height: 100px;
-    padding: 8px;
-    border: 1px solid var(--foreground);
-    border-radius: 6px;
-    font-family: "Monaco", "Menlo", monospace;
-    font-size: 11px;
-    resize: vertical;
-    background: var(--panel-bg);
-    color: var(--text);
-}
-
-.csv-input:focus {
-    outline: none;
-    border-color: var(--button-bg);
-}
-
-.csv-input.hidden {
-    display: none;
 }
 
 /* Slider row */

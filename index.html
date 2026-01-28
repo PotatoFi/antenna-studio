@@ -29,7 +29,7 @@
                     <div class="pattern-section">
                         <div class="pattern-header">
                             <span class="color-indicator azimuth"></span>
-                            <span>Azimuth (XY)</span>
+                            <span>Azimuth / Horizontal / XY</span>
                         </div>
                         <div class="pattern-chart">
                             <canvas
@@ -63,19 +63,32 @@
                                     &#8635;
                                 </button>
                             </div>
+                            <div class="swap-controls">
+                                <button
+                                    class="toolbar-button swap-btn"
+                                    data-plane="azimuth"
+                                    data-target="elevation-xz"
+                                    title="Swap with XZ"
+                                >
+                                    Swap to XZ
+                                </button>
+                                <button
+                                    class="toolbar-button swap-btn"
+                                    data-plane="azimuth"
+                                    data-target="elevation-yz"
+                                    title="Swap with YZ"
+                                >
+                                    Swap to YZ
+                                </button>
+                            </div>
                         </div>
-                        <textarea
-                            id="azimuth-csv"
-                            class="csv-input hidden"
-                            placeholder="Paste angle,gain pairs..."
-                        ></textarea>
                     </div>
 
                     <!-- Elevation XZ Pattern -->
                     <div class="pattern-section">
                         <div class="pattern-header">
                             <span class="color-indicator elevation-xz"></span>
-                            <span>Elevation (XZ)</span>
+                            <span>Elevation / Vertical / XZ</span>
                         </div>
                         <div class="pattern-chart">
                             <canvas
@@ -109,19 +122,32 @@
                                     &#8635;
                                 </button>
                             </div>
+                            <div class="swap-controls">
+                                <button
+                                    class="toolbar-button swap-btn"
+                                    data-plane="elevation-xz"
+                                    data-target="azimuth"
+                                    title="Swap with XY"
+                                >
+                                    Swap to XY
+                                </button>
+                                <button
+                                    class="toolbar-button swap-btn"
+                                    data-plane="elevation-xz"
+                                    data-target="elevation-yz"
+                                    title="Swap with YZ"
+                                >
+                                    Swap to YZ
+                                </button>
+                            </div>
                         </div>
-                        <textarea
-                            id="elevation-xz-csv"
-                            class="csv-input hidden"
-                            placeholder="Paste angle,gain pairs..."
-                        ></textarea>
                     </div>
 
                     <!-- Elevation YZ Pattern -->
                     <div class="pattern-section">
                         <div class="pattern-header">
                             <span class="color-indicator elevation-yz"></span>
-                            <span>Elevation (YZ)</span>
+                            <span>Elevation / Vertical / YZ</span>
                         </div>
                         <div class="pattern-chart">
                             <canvas
@@ -155,12 +181,25 @@
                                     &#8635;
                                 </button>
                             </div>
+                            <div class="swap-controls">
+                                <button
+                                    class="toolbar-button swap-btn"
+                                    data-plane="elevation-yz"
+                                    data-target="azimuth"
+                                    title="Swap with XY"
+                                >
+                                    Swap to XY
+                                </button>
+                                <button
+                                    class="toolbar-button swap-btn"
+                                    data-plane="elevation-yz"
+                                    data-target="elevation-xz"
+                                    title="Swap with XZ"
+                                >
+                                    Swap to XZ
+                                </button>
+                            </div>
                         </div>
-                        <textarea
-                            id="elevation-yz-csv"
-                            class="csv-input hidden"
-                            placeholder="Paste angle,gain pairs..."
-                        ></textarea>
                     </div>
                 </div>
             </div>

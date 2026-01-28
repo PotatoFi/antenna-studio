@@ -604,31 +604,17 @@ function initializeEventListeners() {
     }
   });
 
-  // Paste CSV buttons
+  // Paste CSV buttons - read directly from clipboard
   document.querySelectorAll(".paste-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       const plane = e.target.dataset.plane;
-      toggleCSVInput(plane);
-    });
-  });
-
-  // CSV textareas - load on blur or Enter
-  document.querySelectorAll(".csv-input").forEach((textarea) => {
-    textarea.addEventListener("blur", (e) => {
-      const plane = e.target.id.replace("-csv", "");
-      if (e.target.value.trim()) {
-        loadPatternFromTextarea(plane);
-      }
-    });
-
-    textarea.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        const plane = e.target.id.replace("-csv", "");
-        if (e.target.value.trim()) {
-          loadPatternFromTextarea(plane);
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text.trim()) {
+          pastePatternFromClipboard(plane, text);
         }
-        e.target.classList.add("hidden");
+      } catch (err) {
+        console.error("Failed to read clipboard:", err);
       }
     });
   });
@@ -639,6 +625,15 @@ function initializeEventListeners() {
       const plane = e.target.dataset.plane;
       const direction = e.target.dataset.direction;
       rotatePattern(plane, direction);
+    });
+  });
+
+  // Swap buttons
+  document.querySelectorAll(".swap-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const plane = e.target.dataset.plane;
+      const target = e.target.dataset.target;
+      swapPatterns(plane, target);
     });
   });
 
@@ -764,21 +759,6 @@ function closeAllDropdowns() {
   activeDropdown = null;
 }
 
-// CSV input toggle
-function toggleCSVInput(plane) {
-  const textareaId =
-    plane === "elevation-xz"
-      ? "elevation-xz-csv"
-      : plane === "elevation-yz"
-        ? "elevation-yz-csv"
-        : "azimuth-csv";
-  const textarea = document.getElementById(textareaId);
-  textarea.classList.toggle("hidden");
-  if (!textarea.classList.contains("hidden")) {
-    textarea.focus();
-  }
-}
-
 // Plane visibility
 function togglePlaneVisibility(plane) {
   const dataKey = planeToDataKey(plane);
@@ -844,28 +824,9 @@ function parseCSV(csvText) {
   return data;
 }
 
-function loadPatternFromTextarea(plane) {
-  let textareaId, dataKey;
-
-  switch (plane) {
-    case "azimuth":
-      textareaId = "azimuth-csv";
-      dataKey = "azimuth";
-      break;
-    case "elevation-xz":
-      textareaId = "elevation-xz-csv";
-      dataKey = "elevationXZ";
-      break;
-    case "elevation-yz":
-      textareaId = "elevation-yz-csv";
-      dataKey = "elevationYZ";
-      break;
-    default:
-      return;
-  }
-
-  const textarea = document.getElementById(textareaId);
-  const data = parseCSV(textarea.value);
+function pastePatternFromClipboard(plane, csvText) {
+  const dataKey = planeToDataKey(plane);
+  const data = parseCSV(csvText);
 
   if (data.length > 0) {
     antennaData[dataKey] = data;
@@ -883,25 +844,7 @@ function loadPatternFromTextarea(plane) {
 
 // Rotate a pattern by 90 degrees
 function rotatePattern(plane, direction, degrees = 90) {
-  let dataKey, textareaId;
-
-  switch (plane) {
-    case "azimuth":
-      dataKey = "azimuth";
-      textareaId = "azimuth-csv";
-      break;
-    case "elevation-xz":
-      dataKey = "elevationXZ";
-      textareaId = "elevation-xz-csv";
-      break;
-    case "elevation-yz":
-      dataKey = "elevationYZ";
-      textareaId = "elevation-yz-csv";
-      break;
-    default:
-      return;
-  }
-
+  const dataKey = planeToDataKey(plane);
   const data = antennaData[dataKey];
   if (!data || data.length === 0) return;
 
@@ -923,9 +866,38 @@ function rotatePattern(plane, direction, degrees = 90) {
   // Update the data
   antennaData[dataKey] = rotatedData;
 
-  // Update the textarea with the new CSV
-  const csvText = rotatedData.map((p) => `${p.angle},${p.gain}`).join("\n");
-  document.getElementById(textareaId).value = csvText;
+  // Redraw
+  redrawAll();
+}
+
+// Swap two patterns between planes
+function swapPatterns(plane1, plane2) {
+  const dataKey1 = planeToDataKey(plane1);
+  const dataKey2 = planeToDataKey(plane2);
+
+  // Swap the data arrays
+  const tempData = antennaData[dataKey1];
+  antennaData[dataKey1] = antennaData[dataKey2];
+  antennaData[dataKey2] = tempData;
+
+  // Swap visibility states
+  const tempVisibility = planeVisibility[dataKey1];
+  planeVisibility[dataKey1] = planeVisibility[dataKey2];
+  planeVisibility[dataKey2] = tempVisibility;
+
+  // Update visibility UI
+  const planeToggle1 = document.querySelector(
+    `.plane-toggle[data-plane="${plane1}"]`,
+  );
+  const planeToggle2 = document.querySelector(
+    `.plane-toggle[data-plane="${plane2}"]`,
+  );
+  if (planeToggle1) {
+    planeToggle1.classList.toggle("hidden", !planeVisibility[dataKey1]);
+  }
+  if (planeToggle2) {
+    planeToggle2.classList.toggle("hidden", !planeVisibility[dataKey2]);
+  }
 
   // Redraw
   redrawAll();
