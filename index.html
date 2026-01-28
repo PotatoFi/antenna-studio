@@ -158,125 +158,149 @@
             <div class="modal">
                 <div class="modal-header">
                     <h2>Antenna Patterns</h2>
-                    <div class="modal-tabs">
-                        <button class="modal-tab active" data-tab="input">
-                            Edit Data
-                        </button>
-                        <button class="modal-tab" data-tab="charts">
-                            2D Charts
-                        </button>
-                    </div>
                     <button class="modal-close" data-close-modal>
                         &times;
                     </button>
                 </div>
                 <div class="modal-body">
-                    <!-- Input Tab -->
-                    <div class="tab-content active" id="tab-input">
-                        <div class="pattern-inputs">
-                            <div class="pattern-input">
-                                <h3>
-                                    <span class="color-dot azimuth"></span>
-                                    Azimuth (XY Plane)
-                                </h3>
-                                <label for="azimuth-csv"
-                                    >Paste CSV (angle,gain pairs):</label
-                                >
-                                <textarea
-                                    id="azimuth-csv"
-                                    placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
-                                ></textarea>
-                                <button class="load-btn" data-plane="azimuth">
-                                    Load Pattern
-                                </button>
-                            </div>
-
-                            <div class="pattern-input">
-                                <h3>
-                                    <span class="color-dot elevation-xz"></span>
-                                    Elevation XZ Plane
-                                </h3>
-                                <label for="elevation-xz-csv"
-                                    >Paste CSV (angle,gain pairs):</label
-                                >
-                                <textarea
-                                    id="elevation-xz-csv"
-                                    placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
-                                ></textarea>
-                                <button
-                                    class="load-btn"
-                                    data-plane="elevation-xz"
-                                >
-                                    Load Pattern
-                                </button>
-                            </div>
-
-                            <div class="pattern-input">
-                                <h3>
-                                    <span class="color-dot elevation-yz"></span>
-                                    Elevation YZ Plane
-                                </h3>
-                                <label for="elevation-yz-csv"
-                                    >Paste CSV (angle,gain pairs):</label
-                                >
-                                <textarea
-                                    id="elevation-yz-csv"
-                                    placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
-                                ></textarea>
-                                <button
-                                    class="load-btn"
-                                    data-plane="elevation-yz"
-                                >
-                                    Load Pattern
-                                </button>
+                    <div class="pattern-inputs">
+                        <div class="pattern-input">
+                            <h3>
+                                <span class="color-dot azimuth"></span>
+                                Azimuth (XY Plane)
+                            </h3>
+                            <label for="azimuth-csv"
+                                >Paste CSV (angle,gain pairs):</label
+                            >
+                            <textarea
+                                id="azimuth-csv"
+                                placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
+                            ></textarea>
+                            <button class="load-btn" data-plane="azimuth">
+                                Load Pattern
+                            </button>
+                            <div class="inline-chart">
+                                <canvas
+                                    id="azimuth-chart"
+                                    width="280"
+                                    height="280"
+                                ></canvas>
+                                <div class="pattern-actions">
+                                    <button
+                                        class="rotate-btn"
+                                        data-plane="azimuth"
+                                        data-direction="ccw"
+                                        title="Rotate Counter-clockwise"
+                                    >
+                                        &#8634; CCW
+                                    </button>
+                                    <button
+                                        class="rotate-btn"
+                                        data-plane="azimuth"
+                                        data-direction="cw"
+                                        title="Rotate Clockwise"
+                                    >
+                                        CW &#8635;
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="gain-settings">
-                            <h3>Gain Display Settings</h3>
-                            <label>
-                                Min Gain (dBi):
-                                <input
-                                    type="number"
-                                    id="min-gain"
-                                    value="-30"
-                                />
-                            </label>
-                            <label>
-                                Max Gain (dBi):
-                                <input type="number" id="max-gain" value="10" />
-                            </label>
+                        <div class="pattern-input">
+                            <h3>
+                                <span class="color-dot elevation-xz"></span>
+                                Elevation XZ Plane
+                            </h3>
+                            <label for="elevation-xz-csv"
+                                >Paste CSV (angle,gain pairs):</label
+                            >
+                            <textarea
+                                id="elevation-xz-csv"
+                                placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
+                            ></textarea>
+                            <button class="load-btn" data-plane="elevation-xz">
+                                Load Pattern
+                            </button>
+                            <div class="inline-chart">
+                                <canvas
+                                    id="elevation-xz-chart"
+                                    width="280"
+                                    height="280"
+                                ></canvas>
+                                <div class="pattern-actions">
+                                    <button
+                                        class="rotate-btn"
+                                        data-plane="elevation-xz"
+                                        data-direction="ccw"
+                                        title="Rotate Counter-clockwise"
+                                    >
+                                        &#8634; CCW
+                                    </button>
+                                    <button
+                                        class="rotate-btn"
+                                        data-plane="elevation-xz"
+                                        data-direction="cw"
+                                        title="Rotate Clockwise"
+                                    >
+                                        CW &#8635;
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pattern-input">
+                            <h3>
+                                <span class="color-dot elevation-yz"></span>
+                                Elevation YZ Plane
+                            </h3>
+                            <label for="elevation-yz-csv"
+                                >Paste CSV (angle,gain pairs):</label
+                            >
+                            <textarea
+                                id="elevation-yz-csv"
+                                placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
+                            ></textarea>
+                            <button class="load-btn" data-plane="elevation-yz">
+                                Load Pattern
+                            </button>
+                            <div class="inline-chart">
+                                <canvas
+                                    id="elevation-yz-chart"
+                                    width="280"
+                                    height="280"
+                                ></canvas>
+                                <div class="pattern-actions">
+                                    <button
+                                        class="rotate-btn"
+                                        data-plane="elevation-yz"
+                                        data-direction="ccw"
+                                        title="Rotate Counter-clockwise"
+                                    >
+                                        &#8634; CCW
+                                    </button>
+                                    <button
+                                        class="rotate-btn"
+                                        data-plane="elevation-yz"
+                                        data-direction="cw"
+                                        title="Rotate Clockwise"
+                                    >
+                                        CW &#8635;
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Charts Tab -->
-                    <div class="tab-content" id="tab-charts">
-                        <div class="polar-charts">
-                            <div class="polar-chart-container">
-                                <h3>Azimuth (XY)</h3>
-                                <canvas
-                                    id="azimuth-chart"
-                                    width="350"
-                                    height="350"
-                                ></canvas>
-                            </div>
-                            <div class="polar-chart-container">
-                                <h3>Elevation (XZ)</h3>
-                                <canvas
-                                    id="elevation-xz-chart"
-                                    width="350"
-                                    height="350"
-                                ></canvas>
-                            </div>
-                            <div class="polar-chart-container">
-                                <h3>Elevation (YZ)</h3>
-                                <canvas
-                                    id="elevation-yz-chart"
-                                    width="350"
-                                    height="350"
-                                ></canvas>
-                            </div>
-                        </div>
+                    <div class="gain-settings">
+                        <h3>Gain Display Settings</h3>
+                        <label>
+                            Min Gain (dBi):
+                            <input type="number" id="min-gain" value="-30" />
+                        </label>
+                        <label>
+                            Max Gain (dBi):
+                            <input type="number" id="max-gain" value="10" />
+                        </label>
                     </div>
                 </div>
             </div>

@@ -13,7 +13,7 @@ const antennaData = {
 const planeVisibility = {
   azimuth: true,
   elevationXZ: true,
-  elevationYZ: true,
+  elevationYZ: false, // Hidden by default
 };
 
 // World orientation - FIXED, never changes
@@ -47,6 +47,14 @@ document.addEventListener("DOMContentLoaded", () => {
   initializeEventListeners();
   loadSampleData();
   resizeCanvas3D();
+
+  // Initialize YZ plane toggle as hidden (since planeVisibility.elevationYZ is false)
+  const yzToggle = document.querySelector(
+    '.plane-toggle[data-plane="elevation-yz"]',
+  );
+  if (yzToggle) {
+    yzToggle.classList.add("hidden");
+  }
 });
 
 function initializeEventListeners() {
@@ -57,14 +65,6 @@ function initializeEventListeners() {
       openModal("patterns-modal");
       redrawPolarCharts();
     });
-
-  // Tab switching
-  document.querySelectorAll(".modal-tab").forEach((tab) => {
-    tab.addEventListener("click", (e) => {
-      const tabName = e.target.dataset.tab;
-      switchTab(tabName);
-    });
-  });
 
   // Close modal buttons
   document.querySelectorAll("[data-close-modal]").forEach((btn) => {
@@ -120,6 +120,15 @@ function initializeEventListeners() {
     btn.addEventListener("click", (e) => {
       const plane = e.target.dataset.plane;
       loadPatternFromTextarea(plane);
+    });
+  });
+
+  // Rotate buttons
+  document.querySelectorAll(".rotate-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const plane = e.target.dataset.plane;
+      const direction = e.target.dataset.direction;
+      rotatePattern(plane, direction);
     });
   });
 
@@ -195,24 +204,6 @@ function openModal(modalId) {
 
 function closeModal(modalId) {
   document.getElementById(modalId).classList.remove("active");
-}
-
-// Tab switching
-function switchTab(tabName) {
-  // Update tab buttons
-  document.querySelectorAll(".modal-tab").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.tab === tabName);
-  });
-
-  // Update tab content
-  document.querySelectorAll(".tab-content").forEach((content) => {
-    content.classList.toggle("active", content.id === `tab-${tabName}`);
-  });
-
-  // Redraw charts when switching to charts tab
-  if (tabName === "charts") {
-    redrawPolarCharts();
-  }
 }
 
 // Plane visibility
@@ -316,6 +307,56 @@ function loadPatternFromTextarea(plane) {
     planeToggle.classList.remove("hidden");
     redrawAll();
   }
+}
+
+// Rotate a pattern by 90 degrees
+function rotatePattern(plane, direction, degrees = 90) {
+  let dataKey, textareaId;
+
+  switch (plane) {
+    case "azimuth":
+      dataKey = "azimuth";
+      textareaId = "azimuth-csv";
+      break;
+    case "elevation-xz":
+      dataKey = "elevationXZ";
+      textareaId = "elevation-xz-csv";
+      break;
+    case "elevation-yz":
+      dataKey = "elevationYZ";
+      textareaId = "elevation-yz-csv";
+      break;
+    default:
+      return;
+  }
+
+  const data = antennaData[dataKey];
+  if (!data || data.length === 0) return;
+
+  // Calculate rotation amount
+  const rotationAmount = direction === "cw" ? degrees : -degrees;
+
+  // Rotate all angles
+  const rotatedData = data.map((point) => {
+    let newAngle = point.angle + rotationAmount;
+    // Normalize to 0-360 range
+    while (newAngle < 0) newAngle += 360;
+    while (newAngle >= 360) newAngle -= 360;
+    return { angle: newAngle, gain: point.gain };
+  });
+
+  // Sort by angle
+  rotatedData.sort((a, b) => a.angle - b.angle);
+
+  // Update the data
+  antennaData[dataKey] = rotatedData;
+
+  // Update the textarea with the new CSV
+  const csvText = rotatedData.map((p) => `${p.angle},${p.gain}`).join("\n");
+  document.getElementById(textareaId).value = csvText;
+
+  // Redraw
+  redrawAll();
 }
 
 // Load sample data for demonstration

@@ -477,10 +477,48 @@ header h1 {
     font-weight: 500;
     transition: background 0.2s;
     width: 100%;
+    margin-bottom: 10px;
 }
 
 .load-btn:hover {
     background: #1565c0;
+}
+
+/* Inline chart below load button */
+.inline-chart {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.inline-chart canvas {
+    background: #fff;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+/* Pattern action buttons */
+.pattern-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.rotate-btn {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #555;
+    transition: all 0.2s;
+}
+
+.rotate-btn:hover {
+    background: #e8e8e8;
+    border-color: #ccc;
+    color: #333;
 }
 
 .gain-settings {
