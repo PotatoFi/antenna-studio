@@ -1,3 +1,15 @@
+:root {
+    --background: #f0f0f0;
+    --foreground: #e0e0e0;
+    --text: #333;
+    --header: #666;
+    --panel-bg: #ffffff;
+    --button-bg: #4285f4;
+    --button-hover: #3b78e7;
+    --button-text: #ffffff;
+    --pane-width: 400px;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -5,166 +17,427 @@
 }
 
 body {
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-        sans-serif;
-    background: #f5f5f5;
-    color: #333;
-    min-height: 100vh;
-    line-height: 1.6;
+    margin: 0;
     overflow: hidden;
+    touch-action: none;
+    font-family: "Quicksand", sans-serif;
+    background-color: var(--background);
+    color: var(--text);
 }
 
-/* Main Layout - 3D View Focused */
+/* App container - flexbox layout for canvas and pane */
 .app-container {
     display: flex;
-    flex-direction: column;
+    width: 100vw;
     height: 100vh;
 }
 
-header {
-    background: #fff;
-    padding: 12px 20px;
-    border-bottom: 1px solid #ddd;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px;
-    flex-shrink: 0;
-}
-
-header h1 {
-    font-size: 1.4rem;
-    color: #1976d2;
-}
-
-.header-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-/* Toolbar Buttons */
-.toolbar-btn {
-    background: #fff;
-    color: #333;
-    border: 1px solid #ccc;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.toolbar-btn:hover {
-    background: #f0f0f0;
-    border-color: #999;
-}
-
-.toolbar-btn.primary {
-    background: #1976d2;
-    color: #fff;
-    border-color: #1976d2;
-}
-
-.toolbar-btn.primary:hover {
-    background: #1565c0;
-}
-
-.toolbar-btn.success {
-    background: #43a047;
-    color: #fff;
-    border-color: #43a047;
-}
-
-.toolbar-btn.success:hover {
-    background: #388e3c;
-}
-
-/* Main 3D View - Fullscreen */
-.main-view {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-}
-
 #canvas-3d {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #fafafa;
+    flex: 1;
+    min-width: 0;
+    touch-action: none;
+    display: block;
     cursor: grab;
+    background-color: #fafafa;
 }
 
 #canvas-3d:active {
     cursor: grabbing;
 }
 
-/* Controls Panel - Floating */
-.controls-panel {
-    position: absolute;
-    top: 15px;
-    left: 15px;
-    background: #fff;
-    border-radius: 6px;
-    padding: 12px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+/* Right Pane - pushes canvas */
+.right-pane {
+    display: none;
+    width: var(--pane-width);
+    height: 100vh;
+    background-color: var(--panel-bg);
+    border-left: 1px solid var(--foreground);
+    box-shadow: -4px 0 8px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.right-pane.visible {
+    display: block;
+}
+
+/* Pane content sections */
+.pane-content {
+    display: none;
+    padding: 15px;
+    flex-direction: column;
+    gap: 15px;
+    min-width: var(--pane-width);
+}
+
+.pane-content.visible {
+    display: flex;
+}
+
+.pane-content > h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text);
+    font-weight: 700;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--foreground);
+}
+
+/* Left Toolbar */
+.tool-menu {
+    position: fixed;
+    top: 20px;
+    left: 20px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    min-width: 180px;
+    gap: 10px;
+    z-index: 3;
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.button {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    border-width: thin;
+    border-style: solid;
+    border-color: var(--foreground);
+    background-color: var(--panel-bg);
+    cursor: pointer;
+    font-size: 24px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+    transition: background-color 0.1s;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    padding: 0;
+}
+
+.button:hover {
+    background-color: var(--foreground);
+}
+
+.button:active {
+    transform: translateY(3px);
+    box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+}
+
+.button.active {
+    background-color: var(--foreground);
+}
+
+/* Dropdown button container */
+.dropdown-button {
+    position: relative;
+}
+
+/* Dropdown menu */
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 0;
+    border-width: thin;
+    border-style: solid;
+    border-color: var(--foreground);
+    background-color: var(--panel-bg);
+    color: var(--text);
+    width: 220px;
+    max-width: calc(100vw - 100px + env(safe-area-inset-right));
+    max-height: calc(100dvh - 50px - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+    border-radius: 6px;
+    padding: 6px;
     z-index: 10;
 }
 
-.controls-panel h3 {
-    font-size: 0.8rem;
-    color: #666;
-    margin-bottom: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+.dropdown-menu.visible {
+    display: block;
 }
 
-.control-group {
+.dropdown-menu h4 {
+    margin: 5px 0;
+    color: var(--header);
+    font-weight: 700;
+    font-size: 12px;
+    padding: 0 5px;
+}
+
+.dropdown-menu label {
+    display: block;
+    padding: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.dropdown-menu label:hover {
+    background-color: var(--foreground);
+    border-radius: 6px;
+}
+
+.dropdown-menu input[type="radio"],
+.dropdown-menu input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.dropdown-menu .slider-row {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
 }
 
-.control-row {
+.dropdown-menu .slider-row label {
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.dropdown-menu .slider-row input[type="range"] {
+    flex: 1;
+    min-width: 60px;
+}
+
+.dropdown-menu .slider-row span {
+    min-width: 30px;
+    font-size: 12px;
+    color: var(--header);
+    text-align: right;
+}
+
+.dropdown-menu .plane-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px;
+    background: var(--foreground);
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+.dropdown-menu .plane-toggle:last-child {
+    margin-bottom: 0;
+}
+
+.dropdown-menu .plane-toggle .plane-info {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.control-row label {
+.dropdown-menu .plane-toggle .plane-name {
+    font-size: 13px;
+}
+
+.dropdown-menu .plane-toggle .toggle-visibility-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 12px;
+    color: var(--text);
+    border-radius: 4px;
+}
+
+.dropdown-menu .plane-toggle .toggle-visibility-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-menu .plane-toggle.hidden {
+    opacity: 0.5;
+}
+
+.dropdown-menu .plane-toggle.hidden .plane-name {
+    text-decoration: line-through;
+}
+
+/* Toolbar sections */
+.toolbar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.toolbar-section h4 {
+    margin: 0;
+    font-size: 12px;
+    color: var(--header);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.toolbar-section label {
+    display: block;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.toolbar-section label:hover {
+    background-color: var(--foreground);
+}
+
+.toolbar-section input[type="radio"],
+.toolbar-section input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+/* Pattern sections in Edit pane */
+.pattern-section {
+    background: var(--background);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pattern-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
 }
 
-.control-row input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
+.pattern-chart {
+    display: flex;
+    justify-content: center;
 }
 
-/* Plane toggles with colors */
+.pattern-chart canvas {
+    background: var(--panel-bg);
+    border-radius: 6px;
+}
+
+.pattern-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pattern-controls .paste-btn {
+    flex: 1;
+}
+
+.rotate-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.toolbar-button {
+    background-color: var(--panel-bg);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    transition: background-color 0.1s;
+    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toolbar-button:hover {
+    background-color: var(--foreground);
+}
+
+.toolbar-button:active {
+    transform: translateY(2px);
+}
+
+.toolbar-button.blue {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+}
+
+.toolbar-button.blue:hover {
+    background-color: var(--button-hover);
+}
+
+/* CSV input textarea */
+.csv-input {
+    width: 100%;
+    height: 100px;
+    padding: 8px;
+    border: 1px solid var(--foreground);
+    border-radius: 6px;
+    font-family: "Monaco", "Menlo", monospace;
+    font-size: 11px;
+    resize: vertical;
+    background: var(--panel-bg);
+    color: var(--text);
+}
+
+.csv-input:focus {
+    outline: none;
+    border-color: var(--button-bg);
+}
+
+.csv-input.hidden {
+    display: none;
+}
+
+/* Slider row */
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+}
+
+.slider-row label {
+    flex-shrink: 0;
+    font-size: 14px;
+    padding: 0;
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    min-width: 60px;
+}
+
+.slider-row span {
+    min-width: 35px;
+    font-size: 12px;
+    color: var(--header);
+    text-align: right;
+}
+
+/* Color indicators */
+.color-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.color-indicator.azimuth {
+    background: #4080e0;
+}
+
+.color-indicator.elevation-xz {
+    background: #40b040;
+}
+
+.color-indicator.elevation-yz {
+    background: #e04040;
+}
+
+/* Plane toggles */
 .plane-toggle {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 8px;
-    background: #f9f9f9;
-    border-radius: 4px;
-    border: 1px solid #eee;
+    padding: 8px;
+    background: var(--foreground);
+    border-radius: 6px;
 }
 
 .plane-toggle .plane-info {
@@ -173,44 +446,22 @@ header h1 {
     gap: 8px;
 }
 
-.plane-toggle .color-indicator {
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
-}
-
-.plane-toggle .color-indicator.azimuth {
-    background: #4080e0; /* Blue - rotates around Z */
-}
-.plane-toggle .color-indicator.elevation-xz {
-    background: #40b040; /* Green - rotates around Y */
-}
-.plane-toggle .color-indicator.elevation-yz {
-    background: #e04040; /* Red - rotates around X */
-}
-
 .plane-toggle .plane-name {
-    font-size: 0.85rem;
+    font-size: 14px;
 }
 
-.plane-toggle .plane-actions {
-    display: flex;
-    gap: 4px;
-}
-
-.plane-toggle button {
+.plane-toggle .toggle-visibility-btn {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 2px 6px;
-    font-size: 0.8rem;
-    color: #666;
-    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 14px;
+    color: var(--text);
+    border-radius: 4px;
 }
 
-.plane-toggle button:hover {
-    background: #eee;
-    color: #333;
+.plane-toggle .toggle-visibility-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .plane-toggle.hidden {
@@ -221,435 +472,14 @@ header h1 {
     text-decoration: line-through;
 }
 
-/* Small control buttons */
-.small-btn {
-    background: #f0f0f0;
-    border: 1px solid #ddd;
-    padding: 4px 10px;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 0.8rem;
-}
-
-.small-btn:hover {
-    background: #e0e0e0;
-}
-
-/* Zoom controls */
-.zoom-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.zoom-controls .small-btn {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    font-weight: bold;
-}
-
-.zoom-controls #zoom-level {
-    font-size: 0.8rem;
-    color: #666;
-    min-width: 45px;
-    text-align: center;
-}
-
-/* Mount type selector */
-.control-row select {
-    width: 100%;
-    padding: 6px 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-.control-row select:focus {
-    outline: none;
-    border-color: #1976d2;
-}
-
-/* Range slider styling */
-.slider-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.slider-row label {
-    flex-shrink: 0;
-    font-size: 0.85rem;
-}
-
-.slider-row input[type="range"] {
-    flex: 1;
-    min-width: 60px;
-}
-
-.slider-row span {
-    min-width: 35px;
-    font-size: 0.8rem;
-    color: #666;
-    text-align: right;
-}
-
-/* Instructions */
-.instructions {
-    position: absolute;
-    bottom: 15px;
-    right: 15px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 4px;
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    color: #999;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-}
-
-/* Modal Overlay */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.2s;
-}
-
-.modal-overlay.active {
-    opacity: 1;
-    visibility: visible;
-}
-
-.modal {
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    max-width: 90vw;
-    max-height: 90vh;
-    overflow: hidden;
-    transform: scale(0.95);
-    transition: transform 0.2s;
-    display: flex;
-    flex-direction: column;
-}
-
-.modal-overlay.active .modal {
-    transform: scale(1);
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid #eee;
-    gap: 20px;
-    flex-shrink: 0;
-}
-
-.modal-header h2 {
-    font-size: 1.2rem;
-    color: #333;
-    margin-right: auto;
-}
-
-.modal-tabs {
-    display: flex;
-    gap: 4px;
-}
-
-.modal-tab {
-    background: #f0f0f0;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    color: #666;
-    transition: all 0.2s;
-}
-
-.modal-tab:hover {
-    background: #e0e0e0;
-}
-
-.modal-tab.active {
-    background: #1976d2;
-    color: #fff;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #999;
-    padding: 0;
-    line-height: 1;
-    margin-left: 10px;
-}
-
-.modal-close:hover {
-    color: #333;
-}
-
-.modal-body {
-    padding: 20px;
-    overflow-y: auto;
-    flex: 1;
-}
-
-/* Tab Content */
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-/* Patterns Modal */
-.patterns-modal .modal {
-    width: 1100px;
-}
-
-.pattern-inputs {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-}
-
-.pattern-input {
-    background: #f9f9f9;
-    padding: 15px;
-    border-radius: 6px;
-    border: 1px solid #eee;
-}
-
-.pattern-input h3 {
-    color: #333;
-    margin-bottom: 10px;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.pattern-input h3 .color-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-}
-
-.pattern-input h3 .color-dot.azimuth {
-    background: #4080e0; /* Blue - rotates around Z */
-}
-.pattern-input h3 .color-dot.elevation-xz {
-    background: #40b040; /* Green - rotates around Y */
-}
-.pattern-input h3 .color-dot.elevation-yz {
-    background: #e04040; /* Red - rotates around X */
-}
-
-.pattern-input label {
-    display: block;
-    margin-bottom: 6px;
-    color: #666;
-    font-size: 0.85rem;
-}
-
-.pattern-input textarea {
-    width: 100%;
-    height: 150px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    color: #333;
-    padding: 10px;
-    font-family: "Monaco", "Menlo", monospace;
-    font-size: 0.85rem;
-    resize: vertical;
-    margin-bottom: 10px;
-}
-
-.pattern-input textarea:focus {
-    outline: none;
-    border-color: #1976d2;
-}
-
-.load-btn {
-    background: #1976d2;
-    color: #fff;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background 0.2s;
-    width: 100%;
-    margin-bottom: 10px;
-}
-
-.load-btn:hover {
-    background: #1565c0;
-}
-
-/* Inline chart below load button */
-.inline-chart {
-    margin-top: 10px;
-    text-align: center;
-}
-
-.inline-chart canvas {
-    background: #fff;
-    border-radius: 4px;
-    border: 1px solid #eee;
-}
-
-/* Pattern action buttons */
-.pattern-actions {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 8px;
-}
-
-.rotate-btn {
-    background: #f5f5f5;
-    border: 1px solid #ddd;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    color: #555;
-    transition: all 0.2s;
-}
-
-.rotate-btn:hover {
-    background: #e8e8e8;
-    border-color: #ccc;
-    color: #333;
-}
-
-.gain-settings {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #eee;
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-.gain-settings h3 {
-    width: 100%;
-    color: #333;
-    font-size: 1rem;
-    margin-bottom: 0;
-}
-
-.gain-settings label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #666;
-    font-size: 0.9rem;
-}
-
-.gain-settings input[type="number"] {
-    width: 80px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    color: #333;
-    padding: 6px 10px;
-}
-
-.gain-settings input[type="number"]:focus {
-    outline: none;
-    border-color: #1976d2;
-}
-
-/* Polar Charts */
-.polar-charts {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-}
-
-.polar-chart-container {
-    text-align: center;
-    background: #f9f9f9;
-    padding: 15px;
-    border-radius: 6px;
-    border: 1px solid #eee;
-}
-
-.polar-chart-container h3 {
-    color: #333;
-    margin-bottom: 10px;
-    font-size: 1rem;
-}
-
-.polar-chart-container canvas {
-    background: #fff;
-    border-radius: 4px;
-    border: 1px solid #eee;
-}
-
 /* Responsive */
-@media (max-width: 1000px) {
-    .pattern-inputs,
-    .polar-charts {
-        grid-template-columns: 1fr;
-    }
-
-    .patterns-modal .modal {
-        width: 95vw;
-    }
-
-    .modal-header {
-        flex-wrap: wrap;
-    }
-
-    .modal-tabs {
-        order: 3;
-        width: 100%;
-        margin-top: 10px;
-    }
-}
-
 @media (max-width: 600px) {
-    header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .header-actions {
-        width: 100%;
-        justify-content: flex-start;
-    }
-
-    .controls-panel {
+    .tool-menu {
         top: 10px;
         left: 10px;
-        right: 10px;
-        min-width: auto;
+    }
+
+    :root {
+        --pane-width: calc(100vw - 70px);
     }
 }

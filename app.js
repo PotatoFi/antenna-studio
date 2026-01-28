@@ -491,6 +491,12 @@ const view3D = {
   showAntennaAxes: true,
 };
 
+// Currently active pane
+let activePane = null;
+
+// Currently open dropdown menu
+let activeDropdown = null;
+
 // Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
   initializeEventListeners();
@@ -507,28 +513,59 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initializeEventListeners() {
-  // Modal controls
-  document
-    .getElementById("open-patterns-modal")
-    .addEventListener("click", () => {
-      openModal("patterns-modal");
-      redrawPolarCharts();
-    });
+  // Toolbar buttons - Edit and View toggle panes
+  document.getElementById("edit-btn").addEventListener("click", () => {
+    closeAllDropdowns();
+    togglePane("edit-pane", "edit-btn");
+  });
 
-  // Close modal buttons
-  document.querySelectorAll("[data-close-modal]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const modal = e.target.closest(".modal-overlay");
-      closeModal(modal.id);
+  document.getElementById("view-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleDropdown("view-menu", "view-btn");
+  });
+
+  // Dropdown menu buttons
+  document.getElementById("mount-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleDropdown("mount-menu", "mount-btn");
+  });
+
+  document.getElementById("model-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleDropdown("model-menu", "model-btn");
+  });
+
+  // Close dropdowns when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".dropdown-button")) {
+      closeAllDropdowns();
+    }
+  });
+
+  // Export button
+  document.getElementById("export-btn").addEventListener("click", exportData);
+
+  // Zoom buttons
+  document.getElementById("zoom-in-btn").addEventListener("click", () => {
+    setZoom(view3D.zoom * 1.25);
+  });
+
+  document.getElementById("zoom-out-btn").addEventListener("click", () => {
+    setZoom(view3D.zoom / 1.25);
+  });
+
+  // Mount type radio buttons
+  document.querySelectorAll('input[name="mount-type"]').forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      setMountType(e.target.value);
     });
   });
 
-  // Close modal on overlay click
-  document.querySelectorAll(".modal-overlay").forEach((overlay) => {
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) {
-        closeModal(overlay.id);
-      }
+  // AP model radio buttons
+  document.querySelectorAll('input[name="ap-model"]').forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      apModel.type = e.target.value;
+      redraw3D();
     });
   });
 
@@ -540,9 +577,12 @@ function initializeEventListeners() {
     }
 
     if (e.key === "Escape") {
-      document.querySelectorAll(".modal-overlay.active").forEach((modal) => {
-        closeModal(modal.id);
-      });
+      // Close dropdowns first, then panes
+      if (activeDropdown) {
+        closeAllDropdowns();
+      } else if (activePane) {
+        closeAllPanes();
+      }
     }
 
     // Camera orientation hotkeys
@@ -564,11 +604,32 @@ function initializeEventListeners() {
     }
   });
 
-  // Load buttons
-  document.querySelectorAll(".load-btn").forEach((btn) => {
+  // Paste CSV buttons
+  document.querySelectorAll(".paste-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const plane = e.target.dataset.plane;
-      loadPatternFromTextarea(plane);
+      toggleCSVInput(plane);
+    });
+  });
+
+  // CSV textareas - load on blur or Enter
+  document.querySelectorAll(".csv-input").forEach((textarea) => {
+    textarea.addEventListener("blur", (e) => {
+      const plane = e.target.id.replace("-csv", "");
+      if (e.target.value.trim()) {
+        loadPatternFromTextarea(plane);
+      }
+    });
+
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const plane = e.target.id.replace("-csv", "");
+        if (e.target.value.trim()) {
+          loadPatternFromTextarea(plane);
+        }
+        e.target.classList.add("hidden");
+      }
     });
   });
 
@@ -581,30 +642,10 @@ function initializeEventListeners() {
     });
   });
 
-  // Gain settings
-  document.getElementById("min-gain").addEventListener("change", (e) => {
-    antennaData.minGain = parseFloat(e.target.value);
-    redrawAll();
-  });
-
-  document.getElementById("max-gain").addEventListener("change", (e) => {
-    antennaData.maxGain = parseFloat(e.target.value);
-    redrawAll();
-  });
-
   // 3D controls
   document
     .getElementById("show-ground-plane")
     .addEventListener("change", redraw3D);
-  document.getElementById("reset-view").addEventListener("click", resetView3D);
-
-  // Zoom controls
-  document.getElementById("zoom-in").addEventListener("click", () => {
-    setZoom(view3D.zoom * 1.25);
-  });
-  document.getElementById("zoom-out").addEventListener("click", () => {
-    setZoom(view3D.zoom / 1.25);
-  });
 
   // World/Antenna axes toggles
   document.getElementById("show-world-axes").addEventListener("change", (e) => {
@@ -618,17 +659,6 @@ function initializeEventListeners() {
       view3D.showAntennaAxes = e.target.checked;
       redraw3D();
     });
-
-  // Mount type selector
-  document.getElementById("mount-type").addEventListener("change", (e) => {
-    setMountType(e.target.value);
-  });
-
-  // AP model type selector
-  document.getElementById("ap-model-type").addEventListener("change", (e) => {
-    apModel.type = e.target.value;
-    redraw3D();
-  });
 
   // Ground plane height slider
   document.getElementById("ground-height").addEventListener("input", (e) => {
@@ -653,20 +683,100 @@ function initializeEventListeners() {
   canvas3d.addEventListener("mouseup", end3DDrag);
   canvas3d.addEventListener("mouseleave", end3DDrag);
 
-  // Export button
-  document.getElementById("export-btn").addEventListener("click", exportData);
-
   // Resize handler for 3D canvas
   window.addEventListener("resize", resizeCanvas3D);
 }
 
-// Modal functions
-function openModal(modalId) {
-  document.getElementById(modalId).classList.add("active");
+// Pane toggle functions
+function togglePane(paneId, btnId) {
+  const rightPane = document.getElementById("right-pane");
+  const paneContent = document.getElementById(paneId);
+  const btn = document.getElementById(btnId);
+
+  if (paneContent.classList.contains("visible")) {
+    // Close this pane
+    paneContent.classList.remove("visible");
+    btn.classList.remove("active");
+    rightPane.classList.remove("visible");
+    activePane = null;
+    resizeCanvas3D();
+  } else {
+    // Hide any other pane content (but keep container open if switching)
+    document.querySelectorAll(".pane-content.visible").forEach((pane) => {
+      pane.classList.remove("visible");
+    });
+    document.querySelectorAll(".tool-menu .button.active").forEach((b) => {
+      b.classList.remove("active");
+    });
+
+    // Open this pane
+    rightPane.classList.add("visible");
+    paneContent.classList.add("visible");
+    btn.classList.add("active");
+    activePane = paneId;
+
+    resizeCanvas3D();
+
+    // If opening edit pane, redraw polar charts
+    if (paneId === "edit-pane") {
+      redrawPolarCharts();
+    }
+  }
 }
 
-function closeModal(modalId) {
-  document.getElementById(modalId).classList.remove("active");
+function closeAllPanes() {
+  const rightPane = document.getElementById("right-pane");
+  document.querySelectorAll(".pane-content.visible").forEach((pane) => {
+    pane.classList.remove("visible");
+  });
+  document.querySelectorAll(".tool-menu .button.active").forEach((btn) => {
+    btn.classList.remove("active");
+  });
+  rightPane.classList.remove("visible");
+  activePane = null;
+  resizeCanvas3D();
+}
+
+// Dropdown toggle functions
+function toggleDropdown(menuId, btnId) {
+  const menu = document.getElementById(menuId);
+  const btn = document.getElementById(btnId);
+
+  if (menu.classList.contains("visible")) {
+    closeAllDropdowns();
+  } else {
+    closeAllDropdowns();
+    menu.classList.add("visible");
+    btn.classList.add("active");
+    activeDropdown = menuId;
+  }
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll(".dropdown-menu.visible").forEach((menu) => {
+    menu.classList.remove("visible");
+  });
+  document
+    .querySelectorAll(".dropdown-button .button.active")
+    .forEach((btn) => {
+      btn.classList.remove("active");
+    });
+  activeDropdown = null;
+}
+
+// CSV input toggle
+function toggleCSVInput(plane) {
+  const textareaId =
+    plane === "elevation-xz"
+      ? "elevation-xz-csv"
+      : plane === "elevation-yz"
+        ? "elevation-yz-csv"
+        : "azimuth-csv";
+  const textarea = document.getElementById(textareaId);
+  textarea.classList.toggle("hidden");
+  if (!textarea.classList.contains("hidden")) {
+    textarea.focus();
+  }
 }
 
 // Plane visibility
@@ -700,15 +810,12 @@ function planeToDataKey(plane) {
   }
 }
 
-// Resize 3D canvas to fill the main view
+// Resize 3D canvas to fill its container
 function resizeCanvas3D() {
   const canvas = document.getElementById("canvas-3d");
-  const mainView = document.querySelector(".main-view");
-  const rect = mainView.getBoundingClientRect();
-
+  const rect = canvas.getBoundingClientRect();
   canvas.width = rect.width;
   canvas.height = rect.height;
-
   redraw3D();
 }
 
@@ -767,7 +874,9 @@ function loadPatternFromTextarea(plane) {
     const planeToggle = document.querySelector(
       `.plane-toggle[data-plane="${plane}"]`,
     );
-    planeToggle.classList.remove("hidden");
+    if (planeToggle) {
+      planeToggle.classList.remove("hidden");
+    }
     redrawAll();
   }
 }
@@ -859,9 +968,9 @@ function redrawAll() {
 }
 
 function redrawPolarCharts() {
-  // Azimuth (XY) rotates around Z axis - use Z color (yellow)
+  // Azimuth (XY) rotates around Z axis - use Z color (blue)
   drawPolarChart("azimuth-chart", antennaData.azimuth, axisColors.z, "X", "Y");
-  // Elevation XZ rotates around Y axis - use Y color (purple)
+  // Elevation XZ rotates around Y axis - use Y color (green)
   drawPolarChart(
     "elevation-xz-chart",
     antennaData.elevationXZ,
@@ -869,7 +978,7 @@ function redrawPolarCharts() {
     "X",
     "Z",
   );
-  // Elevation YZ rotates around X axis - use X color (orange)
+  // Elevation YZ rotates around X axis - use X color (red)
   drawPolarChart(
     "elevation-yz-chart",
     antennaData.elevationYZ,
@@ -889,7 +998,7 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
   const height = canvas.height;
   const centerX = width / 2;
   const centerY = height / 2;
-  const maxRadius = Math.min(width, height) / 2 - 40;
+  const maxRadius = Math.min(width, height) / 2 - 30;
 
   // Clear canvas - light background
   ctx.fillStyle = "#fff";
@@ -902,7 +1011,7 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
   // Draw gain circles
   ctx.strokeStyle = "#ddd";
   ctx.lineWidth = 1;
-  const gainSteps = 5;
+  const gainSteps = 4;
   for (let i = 0; i <= gainSteps; i++) {
     const radius = (i / gainSteps) * maxRadius;
     ctx.beginPath();
@@ -910,18 +1019,20 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
     ctx.stroke();
 
     // Label
-    const gainValue = minGain + (i / gainSteps) * gainRange;
-    ctx.fillStyle = "#999";
-    ctx.font = "10px sans-serif";
-    ctx.fillText(
-      `${gainValue.toFixed(0)} dBi`,
-      centerX + 3,
-      centerY - radius - 2,
-    );
+    if (i > 0) {
+      const gainValue = minGain + (i / gainSteps) * gainRange;
+      ctx.fillStyle = "#999";
+      ctx.font = "9px sans-serif";
+      ctx.fillText(
+        `${gainValue.toFixed(0)}`,
+        centerX + 3,
+        centerY - radius - 2,
+      );
+    }
   }
 
-  // Draw angle lines every 30 degrees with labels every 30 degrees
-  for (let angle = 0; angle < 360; angle += 30) {
+  // Draw angle lines every 45 degrees
+  for (let angle = 0; angle < 360; angle += 45) {
     const rad = ((angle - 90) * Math.PI) / 180;
     const x = centerX + Math.cos(rad) * maxRadius;
     const y = centerY + Math.sin(rad) * maxRadius;
@@ -931,20 +1042,9 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
     ctx.stroke();
-
-    // Angle label
-    const labelRadius = maxRadius + 15;
-    const labelX = centerX + Math.cos(rad) * labelRadius;
-    const labelY = centerY + Math.sin(rad) * labelRadius;
-    ctx.fillStyle = "#666";
-    ctx.font = "11px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(`${angle}°`, labelX, labelY);
   }
 
   // Draw axis arrows and labels
-  // Get axis color based on label
   const axis1Color = axisColors[axis1Label.toLowerCase()];
   const axis2Color = axisColors[axis2Label.toLowerCase()];
 
@@ -953,30 +1053,22 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(centerX, centerY);
-  ctx.lineTo(centerX + maxRadius + 5, centerY);
+  ctx.lineTo(centerX + maxRadius + 3, centerY);
   ctx.stroke();
-  drawArrowHead(ctx, centerX + maxRadius + 5, centerY, 0, axis1Color);
   ctx.fillStyle = axis1Color;
-  ctx.font = "bold 12px sans-serif";
+  ctx.font = "bold 10px sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText(`+${axis1Label}`, centerX + maxRadius + 12, centerY + 4);
+  ctx.fillText(`+${axis1Label}`, centerX + maxRadius + 6, centerY + 4);
 
-  // Positive axis2 (up, 90° in our coordinate system = -90° on canvas)
+  // Positive axis2 (up)
   ctx.strokeStyle = axis2Color;
   ctx.beginPath();
   ctx.moveTo(centerX, centerY);
-  ctx.lineTo(centerX, centerY - maxRadius - 5);
+  ctx.lineTo(centerX, centerY - maxRadius - 3);
   ctx.stroke();
-  drawArrowHead(
-    ctx,
-    centerX,
-    centerY - maxRadius - 5,
-    -Math.PI / 2,
-    axis2Color,
-  );
   ctx.fillStyle = axis2Color;
   ctx.textAlign = "center";
-  ctx.fillText(`+${axis2Label}`, centerX, centerY - maxRadius - 18);
+  ctx.fillText(`+${axis2Label}`, centerX, centerY - maxRadius - 8);
 
   // Draw antenna pattern
   if (data.length > 0) {
@@ -1006,21 +1098,6 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
     ctx.fillStyle = color + "33";
     ctx.fill();
   }
-}
-
-function drawArrowHead(ctx, x, y, angle, fillColor) {
-  const size = 8;
-  ctx.save();
-  ctx.fillStyle = fillColor;
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(-size, -size / 2);
-  ctx.lineTo(-size, size / 2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
 }
 
 // 3D Coordinate Transformation Functions
@@ -1252,8 +1329,7 @@ function redraw3D() {
 
     ctx.lineWidth = 3;
 
-    // X axis (orange) - toward viewer (down-left in isometric view)
-    // In our coordinate system, this is the +Y direction
+    // X axis (red) - toward viewer (down-left in isometric view)
     ctx.strokeStyle = axisColors.x;
     const xEnd = projectWorldToScreen(cornerX, cornerY + axisLength, groundZ);
     ctx.beginPath();
@@ -1264,8 +1340,7 @@ function redraw3D() {
     ctx.font = "bold 12px sans-serif";
     ctx.fillText("X", xEnd.x + 8, xEnd.y + 4);
 
-    // Y axis (purple) - to the right (down-right in isometric view)
-    // In our coordinate system, this is the +X direction
+    // Y axis (green) - to the right (down-right in isometric view)
     ctx.strokeStyle = axisColors.y;
     const yEnd = projectWorldToScreen(cornerX + axisLength, cornerY, groundZ);
     ctx.beginPath();
@@ -1275,7 +1350,7 @@ function redraw3D() {
     ctx.fillStyle = axisColors.y;
     ctx.fillText("Y", yEnd.x + 8, yEnd.y + 4);
 
-    // Z axis (yellow) - up
+    // Z axis (blue) - up
     ctx.strokeStyle = axisColors.z;
     const zEnd = projectWorldToScreen(cornerX, cornerY, groundZ + axisLength);
     ctx.beginPath();
@@ -1299,7 +1374,7 @@ function redraw3D() {
   }
 
   // Draw Azimuth pattern (XY plane in physics coords, Z=0)
-  // Rotates around Z axis - use Z color (yellow)
+  // Rotates around Z axis - use Z color (blue)
   if (planeVisibility.azimuth && antennaData.azimuth.length > 0) {
     ctx.strokeStyle = axisColors.z;
     ctx.lineWidth = 2;
@@ -1334,7 +1409,7 @@ function redraw3D() {
   }
 
   // Draw Elevation XZ pattern (X-Z plane in physics coords, Y=0)
-  // Rotates around Y axis - use Y color (purple)
+  // Rotates around Y axis - use Y color (green)
   if (planeVisibility.elevationXZ && antennaData.elevationXZ.length > 0) {
     ctx.strokeStyle = axisColors.y;
     ctx.lineWidth = 2;
@@ -1368,7 +1443,7 @@ function redraw3D() {
   }
 
   // Draw Elevation YZ pattern (Y-Z plane in physics coords, X=0)
-  // Rotates around X axis - use X color (orange)
+  // Rotates around X axis - use X color (red)
   if (planeVisibility.elevationYZ && antennaData.elevationYZ.length > 0) {
     ctx.strokeStyle = axisColors.x;
     ctx.lineWidth = 2;
@@ -1410,8 +1485,7 @@ function redraw3D() {
     ctx.setLineDash([5, 3]);
     ctx.lineWidth = 2;
 
-    // X axis (orange) - beam direction (toward viewer in default orientation)
-    // In our internal coords, this maps to +Y
+    // X axis (red) - beam direction (toward viewer in default orientation)
     ctx.strokeStyle = axisColors.x;
     const xEnd = projectAntennaToScreen(0, axisLength, 0);
     ctx.beginPath();
@@ -1422,8 +1496,7 @@ function redraw3D() {
     ctx.font = "bold 12px sans-serif";
     ctx.fillText("X", xEnd.x + 8, xEnd.y + 4);
 
-    // Y axis (purple) - side (to the right in default orientation)
-    // In our internal coords, this maps to +X
+    // Y axis (green) - side (to the right in default orientation)
     ctx.strokeStyle = axisColors.y;
     const yEnd = projectAntennaToScreen(axisLength, 0, 0);
     ctx.beginPath();
@@ -1433,7 +1506,7 @@ function redraw3D() {
     ctx.fillStyle = axisColors.y;
     ctx.fillText("Y", yEnd.x + 8, yEnd.y + 4);
 
-    // Z axis (yellow) - "out" from mounting surface
+    // Z axis (blue) - "out" from mounting surface
     ctx.strokeStyle = axisColors.z;
     const zEnd = projectAntennaToScreen(0, 0, axisLength);
     ctx.beginPath();
@@ -1449,6 +1522,11 @@ function redraw3D() {
 
 // 3D Mouse interaction
 function start3DDrag(e) {
+  // Don't start dragging if clicking on UI elements
+  if (e.target.closest(".tool-menu") || e.target.closest(".right-pane")) {
+    return;
+  }
+
   if (e.shiftKey) {
     view3D.isZooming = true;
   } else {
@@ -1489,15 +1567,7 @@ function end3DDrag() {
 
 function setZoom(newZoom) {
   view3D.zoom = Math.max(view3D.minZoom, Math.min(view3D.maxZoom, newZoom));
-  document.getElementById("zoom-level").textContent =
-    Math.round(view3D.zoom * 100) + "%";
   redraw3D();
-}
-
-function resetView3D() {
-  view3D.rotationX = -30;
-  view3D.rotationY = 45;
-  setZoom(1.0);
 }
 
 // Export functionality

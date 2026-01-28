@@ -4,332 +4,351 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Antenna Creator</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet"
+        />
         <link rel="stylesheet" href="styles.css" />
     </head>
     <body>
         <div class="app-container">
-            <header>
-                <h1>Antenna Creator</h1>
-                <div class="header-actions">
-                    <button class="toolbar-btn" id="open-patterns-modal">
-                        <span>Edit Patterns</span>
-                    </button>
-                    <button class="toolbar-btn success" id="export-btn">
-                        <span>Export CSV</span>
-                    </button>
-                </div>
-            </header>
+            <canvas id="canvas-3d"></canvas>
 
-            <main class="main-view">
-                <canvas id="canvas-3d"></canvas>
+            <!-- Right Pane -->
+            <div class="right-pane" id="right-pane">
+                <div class="pane-content" id="edit-pane">
+                    <h3>Edit Antenna</h3>
 
-                <!-- Controls Panel -->
-                <div class="controls-panel">
-                    <div class="control-group">
-                        <h3>Antenna Mount</h3>
-                        <div class="control-row">
-                            <select id="mount-type">
-                                <option value="ceiling">
-                                    Ceiling Mount (Z down)
-                                </option>
-                                <option value="wall">
-                                    Wall Mount (Z horizontal from wall)
-                                </option>
-                                <option value="table">
-                                    Table Mount (Z up)
-                                </option>
-                            </select>
+                    <!-- Azimuth Pattern -->
+                    <div class="pattern-section">
+                        <div class="pattern-header">
+                            <span class="color-indicator azimuth"></span>
+                            <span>Azimuth (XY)</span>
                         </div>
-                    </div>
-
-                    <div class="control-group">
-                        <h3>AP Model</h3>
-                        <div class="control-row">
-                            <select id="ap-model-type">
-                                <option value="none">None</option>
-                                <option value="disc" selected>Disc</option>
-                                <option value="squircle">Squircle</option>
-                                <option value="hospitality">Hospitality</option>
-                                <option value="can">Can</option>
-                                <option value="patch">Patch Panel</option>
-                                <option value="dipole">Dipole</option>
-                                <option value="tube">Tube</option>
-                                <option value="flat">Flat</option>
-                                <option value="standing">Standing</option>
-                                <option value="box">Box</option>
-                            </select>
+                        <div class="pattern-chart">
+                            <canvas
+                                id="azimuth-chart"
+                                width="200"
+                                height="200"
+                            ></canvas>
                         </div>
-                    </div>
-
-                    <div class="control-group">
-                        <h3>Ground Plane</h3>
-                        <div class="control-row">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    id="show-ground-plane"
-                                    checked
-                                />
-                                Show Ground
-                            </label>
-                        </div>
-                        <div class="control-row slider-row">
-                            <label>Height:</label>
-                            <input
-                                type="range"
-                                id="ground-height"
-                                min="-3"
-                                max="0"
-                                step="0.1"
-                                value="-1.5"
-                            />
-                            <span id="ground-height-value">-1.5</span>
-                        </div>
-                    </div>
-
-                    <div class="control-group">
-                        <h3>Coordinate Axes</h3>
-                        <div class="control-row">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    id="show-world-axes"
-                                    checked
-                                />
-                                World (X, Y, Z)
-                            </label>
-                        </div>
-                        <div class="control-row">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    id="show-antenna-axes"
-                                    checked
-                                />
-                                Antenna (X, Y, Z)
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="control-group">
-                        <div class="control-row zoom-controls">
-                            <button class="small-btn" id="zoom-out">−</button>
-                            <span id="zoom-level">100%</span>
-                            <button class="small-btn" id="zoom-in">+</button>
-                        </div>
-                        <button class="small-btn" id="reset-view">
-                            Reset View
-                        </button>
-                    </div>
-
-                    <div class="control-group">
-                        <h3>Planes</h3>
-                        <div class="plane-toggle" data-plane="azimuth">
-                            <div class="plane-info">
-                                <span class="color-indicator azimuth"></span>
-                                <span class="plane-name">Azimuth (XY)</span>
-                            </div>
-                            <div class="plane-actions">
+                        <div class="pattern-controls">
+                            <button
+                                class="toolbar-button paste-btn"
+                                data-plane="azimuth"
+                            >
+                                Paste CSV
+                            </button>
+                            <div class="rotate-controls">
                                 <button
-                                    class="toggle-visibility-btn"
-                                    title="Toggle visibility"
+                                    class="toolbar-button rotate-btn"
+                                    data-plane="azimuth"
+                                    data-direction="ccw"
+                                    title="Rotate Counter-clockwise"
                                 >
-                                    &#128065;
+                                    &#8634;
+                                </button>
+                                <button
+                                    class="toolbar-button rotate-btn"
+                                    data-plane="azimuth"
+                                    data-direction="cw"
+                                    title="Rotate Clockwise"
+                                >
+                                    &#8635;
                                 </button>
                             </div>
                         </div>
-                        <div class="plane-toggle" data-plane="elevation-xz">
-                            <div class="plane-info">
-                                <span
-                                    class="color-indicator elevation-xz"
-                                ></span>
-                                <span class="plane-name">Elevation (XZ)</span>
-                            </div>
-                            <div class="plane-actions">
+                        <textarea
+                            id="azimuth-csv"
+                            class="csv-input hidden"
+                            placeholder="Paste angle,gain pairs..."
+                        ></textarea>
+                    </div>
+
+                    <!-- Elevation XZ Pattern -->
+                    <div class="pattern-section">
+                        <div class="pattern-header">
+                            <span class="color-indicator elevation-xz"></span>
+                            <span>Elevation (XZ)</span>
+                        </div>
+                        <div class="pattern-chart">
+                            <canvas
+                                id="elevation-xz-chart"
+                                width="200"
+                                height="200"
+                            ></canvas>
+                        </div>
+                        <div class="pattern-controls">
+                            <button
+                                class="toolbar-button paste-btn"
+                                data-plane="elevation-xz"
+                            >
+                                Paste CSV
+                            </button>
+                            <div class="rotate-controls">
                                 <button
-                                    class="toggle-visibility-btn"
-                                    title="Toggle visibility"
+                                    class="toolbar-button rotate-btn"
+                                    data-plane="elevation-xz"
+                                    data-direction="ccw"
+                                    title="Rotate Counter-clockwise"
                                 >
-                                    &#128065;
+                                    &#8634;
+                                </button>
+                                <button
+                                    class="toolbar-button rotate-btn"
+                                    data-plane="elevation-xz"
+                                    data-direction="cw"
+                                    title="Rotate Clockwise"
+                                >
+                                    &#8635;
                                 </button>
                             </div>
                         </div>
-                        <div class="plane-toggle" data-plane="elevation-yz">
-                            <div class="plane-info">
-                                <span
-                                    class="color-indicator elevation-yz"
-                                ></span>
-                                <span class="plane-name">Elevation (YZ)</span>
-                            </div>
-                            <div class="plane-actions">
+                        <textarea
+                            id="elevation-xz-csv"
+                            class="csv-input hidden"
+                            placeholder="Paste angle,gain pairs..."
+                        ></textarea>
+                    </div>
+
+                    <!-- Elevation YZ Pattern -->
+                    <div class="pattern-section">
+                        <div class="pattern-header">
+                            <span class="color-indicator elevation-yz"></span>
+                            <span>Elevation (YZ)</span>
+                        </div>
+                        <div class="pattern-chart">
+                            <canvas
+                                id="elevation-yz-chart"
+                                width="200"
+                                height="200"
+                            ></canvas>
+                        </div>
+                        <div class="pattern-controls">
+                            <button
+                                class="toolbar-button paste-btn"
+                                data-plane="elevation-yz"
+                            >
+                                Paste CSV
+                            </button>
+                            <div class="rotate-controls">
                                 <button
-                                    class="toggle-visibility-btn"
-                                    title="Toggle visibility"
+                                    class="toolbar-button rotate-btn"
+                                    data-plane="elevation-yz"
+                                    data-direction="ccw"
+                                    title="Rotate Counter-clockwise"
                                 >
-                                    &#128065;
+                                    &#8634;
+                                </button>
+                                <button
+                                    class="toolbar-button rotate-btn"
+                                    data-plane="elevation-yz"
+                                    data-direction="cw"
+                                    title="Rotate Clockwise"
+                                >
+                                    &#8635;
                                 </button>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div class="instructions">
-                    Drag to rotate · Shift+drag to zoom
-                </div>
-            </main>
-        </div>
-
-        <!-- Combined Patterns Modal -->
-        <div class="modal-overlay patterns-modal" id="patterns-modal">
-            <div class="modal">
-                <div class="modal-header">
-                    <h2>Antenna Patterns</h2>
-                    <button class="modal-close" data-close-modal>
-                        &times;
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="pattern-inputs">
-                        <div class="pattern-input">
-                            <h3>
-                                <span class="color-dot azimuth"></span>
-                                Azimuth (XY Plane)
-                            </h3>
-                            <label for="azimuth-csv"
-                                >Paste CSV (angle,gain pairs):</label
-                            >
-                            <textarea
-                                id="azimuth-csv"
-                                placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
-                            ></textarea>
-                            <button class="load-btn" data-plane="azimuth">
-                                Load Pattern
-                            </button>
-                            <div class="inline-chart">
-                                <canvas
-                                    id="azimuth-chart"
-                                    width="280"
-                                    height="280"
-                                ></canvas>
-                                <div class="pattern-actions">
-                                    <button
-                                        class="rotate-btn"
-                                        data-plane="azimuth"
-                                        data-direction="ccw"
-                                        title="Rotate Counter-clockwise"
-                                    >
-                                        &#8634; CCW
-                                    </button>
-                                    <button
-                                        class="rotate-btn"
-                                        data-plane="azimuth"
-                                        data-direction="cw"
-                                        title="Rotate Clockwise"
-                                    >
-                                        CW &#8635;
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pattern-input">
-                            <h3>
-                                <span class="color-dot elevation-xz"></span>
-                                Elevation XZ Plane
-                            </h3>
-                            <label for="elevation-xz-csv"
-                                >Paste CSV (angle,gain pairs):</label
-                            >
-                            <textarea
-                                id="elevation-xz-csv"
-                                placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
-                            ></textarea>
-                            <button class="load-btn" data-plane="elevation-xz">
-                                Load Pattern
-                            </button>
-                            <div class="inline-chart">
-                                <canvas
-                                    id="elevation-xz-chart"
-                                    width="280"
-                                    height="280"
-                                ></canvas>
-                                <div class="pattern-actions">
-                                    <button
-                                        class="rotate-btn"
-                                        data-plane="elevation-xz"
-                                        data-direction="ccw"
-                                        title="Rotate Counter-clockwise"
-                                    >
-                                        &#8634; CCW
-                                    </button>
-                                    <button
-                                        class="rotate-btn"
-                                        data-plane="elevation-xz"
-                                        data-direction="cw"
-                                        title="Rotate Clockwise"
-                                    >
-                                        CW &#8635;
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pattern-input">
-                            <h3>
-                                <span class="color-dot elevation-yz"></span>
-                                Elevation YZ Plane
-                            </h3>
-                            <label for="elevation-yz-csv"
-                                >Paste CSV (angle,gain pairs):</label
-                            >
-                            <textarea
-                                id="elevation-yz-csv"
-                                placeholder="0,-3&#10;10,-3.5&#10;20,-4&#10;..."
-                            ></textarea>
-                            <button class="load-btn" data-plane="elevation-yz">
-                                Load Pattern
-                            </button>
-                            <div class="inline-chart">
-                                <canvas
-                                    id="elevation-yz-chart"
-                                    width="280"
-                                    height="280"
-                                ></canvas>
-                                <div class="pattern-actions">
-                                    <button
-                                        class="rotate-btn"
-                                        data-plane="elevation-yz"
-                                        data-direction="ccw"
-                                        title="Rotate Counter-clockwise"
-                                    >
-                                        &#8634; CCW
-                                    </button>
-                                    <button
-                                        class="rotate-btn"
-                                        data-plane="elevation-yz"
-                                        data-direction="cw"
-                                        title="Rotate Clockwise"
-                                    >
-                                        CW &#8635;
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="gain-settings">
-                        <h3>Gain Display Settings</h3>
-                        <label>
-                            Min Gain (dBi):
-                            <input type="number" id="min-gain" value="-30" />
-                        </label>
-                        <label>
-                            Max Gain (dBi):
-                            <input type="number" id="max-gain" value="10" />
-                        </label>
+                        <textarea
+                            id="elevation-yz-csv"
+                            class="csv-input hidden"
+                            placeholder="Paste angle,gain pairs..."
+                        ></textarea>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Left Toolbar -->
+        <div class="tool-menu">
+            <!-- Edit -->
+            <button class="button" id="edit-btn" title="Edit Antenna">
+                <i class="bx bx-edit"></i>
+            </button>
+
+            <!-- Mounting Type -->
+            <div class="dropdown-button">
+                <button class="button" id="mount-btn" title="Mounting Type">
+                    <i class="bx bx-home"></i>
+                </button>
+                <div class="dropdown-menu" id="mount-menu">
+                    <h4>Mounting Type</h4>
+                    <label>
+                        <input
+                            type="radio"
+                            name="mount-type"
+                            value="ceiling"
+                            checked
+                        />
+                        Ceiling Mount
+                    </label>
+                    <label>
+                        <input type="radio" name="mount-type" value="wall" />
+                        Wall Mount
+                    </label>
+                    <label>
+                        <input type="radio" name="mount-type" value="table" />
+                        Table Mount
+                    </label>
+                </div>
+            </div>
+
+            <!-- Model Type -->
+            <div class="dropdown-button">
+                <button class="button" id="model-btn" title="Model Type">
+                    <i class="bx bx-cube"></i>
+                </button>
+                <div class="dropdown-menu" id="model-menu">
+                    <h4>Model Type</h4>
+                    <label>
+                        <input type="radio" name="ap-model" value="none" />
+                        None
+                    </label>
+                    <label>
+                        <input
+                            type="radio"
+                            name="ap-model"
+                            value="disc"
+                            checked
+                        />
+                        Disc
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="squircle" />
+                        Squircle
+                    </label>
+                    <label>
+                        <input
+                            type="radio"
+                            name="ap-model"
+                            value="hospitality"
+                        />
+                        Hospitality
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="can" />
+                        Can
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="patch" />
+                        Patch Panel
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="dipole" />
+                        Dipole
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="tube" />
+                        Tube
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="flat" />
+                        Flat
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="standing" />
+                        Standing
+                    </label>
+                    <label>
+                        <input type="radio" name="ap-model" value="box" />
+                        Box
+                    </label>
+                </div>
+            </div>
+
+            <!-- View -->
+            <div class="dropdown-button">
+                <button class="button" id="view-btn" title="View Options">
+                    <i class="bx bx-show"></i>
+                </button>
+                <div class="dropdown-menu" id="view-menu">
+                    <h4>Coordinate Axes</h4>
+                    <label>
+                        <input type="checkbox" id="show-world-axes" checked />
+                        World Axes
+                    </label>
+                    <label>
+                        <input type="checkbox" id="show-antenna-axes" checked />
+                        Antenna Axes
+                    </label>
+                    <h4>Ground Plane</h4>
+                    <label>
+                        <input type="checkbox" id="show-ground-plane" checked />
+                        Show Ground
+                    </label>
+                    <div class="slider-row">
+                        <label>Height:</label>
+                        <input
+                            type="range"
+                            id="ground-height"
+                            min="-3"
+                            max="0"
+                            step="0.1"
+                            value="-1.5"
+                        />
+                        <span id="ground-height-value">-1.5</span>
+                    </div>
+                    <h4>Planes</h4>
+                    <div class="plane-toggle" data-plane="azimuth">
+                        <div class="plane-info">
+                            <span class="color-indicator azimuth"></span>
+                            <span class="plane-name">Azimuth (XY)</span>
+                        </div>
+                        <button
+                            class="toggle-visibility-btn"
+                            title="Toggle visibility"
+                        >
+                            &#128065;
+                        </button>
+                    </div>
+                    <div class="plane-toggle" data-plane="elevation-xz">
+                        <div class="plane-info">
+                            <span class="color-indicator elevation-xz"></span>
+                            <span class="plane-name">Elevation (XZ)</span>
+                        </div>
+                        <button
+                            class="toggle-visibility-btn"
+                            title="Toggle visibility"
+                        >
+                            &#128065;
+                        </button>
+                    </div>
+                    <div class="plane-toggle" data-plane="elevation-yz">
+                        <div class="plane-info">
+                            <span class="color-indicator elevation-yz"></span>
+                            <span class="plane-name">Elevation (YZ)</span>
+                        </div>
+                        <button
+                            class="toggle-visibility-btn"
+                            title="Toggle visibility"
+                        >
+                            &#128065;
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export -->
+            <button class="button" id="export-btn" title="Export CSV">
+                <i class="bx bx-download"></i>
+            </button>
+
+            <!-- Zoom In -->
+            <button class="button" id="zoom-in-btn" title="Zoom In">
+                <i class="bx bx-zoom-in"></i>
+            </button>
+
+            <!-- Zoom Out -->
+            <button class="button" id="zoom-out-btn" title="Zoom Out">
+                <i class="bx bx-zoom-out"></i>
+            </button>
         </div>
 
         <script src="app.js"></script>
