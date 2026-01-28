@@ -16,6 +16,451 @@ const planeVisibility = {
   elevationYZ: false, // Hidden by default
 };
 
+// AP Model state
+const apModel = {
+  type: "disc", // Current selected model type
+  show: true,
+};
+
+// AP Model colors using oklch
+const apColors = {
+  top: "oklch(97% 0 0)", // Brightest face
+  side: "oklch(85% 0 0)", // Medium shade for sides
+  bottom: "oklch(75% 0 0)", // Darkest face
+  outline: "oklch(60% 0 0)", // Outline color
+};
+
+// Axis and pattern colors - consistent everywhere
+// Each axis color matches the pattern that rotates around that axis
+// Using hex format to support transparency (append "33" for 20% opacity)
+const axisColors = {
+  x: "#e04040", // Red - YZ pattern rotates around X
+  y: "#40b040", // Green - XZ pattern rotates around Y
+  z: "#4080e0", // Blue - XY/Azimuth pattern rotates around Z
+};
+
+// AP Model definitions - vertices and faces for each type
+// All models are defined in antenna-local coordinates
+// Z is "out" from mounting surface, X is beam direction
+const apModelDefinitions = {
+  none: {
+    name: "None",
+    vertices: [],
+    faces: [],
+  },
+  disc: {
+    name: "Disc",
+    // Flat cylinder, typical ceiling AP like a smoke detector
+    // Radius ~0.15, height ~0.04
+    generate: function () {
+      const radius = 0.15;
+      const height = 0.04;
+      const segments = 16;
+      const vertices = [];
+      const faces = [];
+
+      // Generate circle vertices for top and bottom
+      for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        vertices.push({ x, y, z: 0 }); // Bottom circle
+        vertices.push({ x, y, z: height }); // Top circle
+      }
+
+      // Top face (single polygon)
+      const topFace = [];
+      for (let i = 0; i < segments; i++) {
+        topFace.push(i * 2 + 1);
+      }
+      faces.push({ indices: topFace, color: apColors.top, type: "top" });
+
+      // Side faces (quads as two triangles each)
+      for (let i = 0; i < segments; i++) {
+        const next = (i + 1) % segments;
+        faces.push({
+          indices: [i * 2, next * 2, next * 2 + 1, i * 2 + 1],
+          color: apColors.side,
+          type: "side",
+        });
+      }
+
+      // Bottom face
+      const bottomFace = [];
+      for (let i = segments - 1; i >= 0; i--) {
+        bottomFace.push(i * 2);
+      }
+      faces.push({
+        indices: bottomFace,
+        color: apColors.bottom,
+        type: "bottom",
+      });
+
+      return { vertices, faces };
+    },
+  },
+  squircle: {
+    name: "Squircle",
+    // Rounded square, typical modern ceiling AP
+    generate: function () {
+      const size = 0.14;
+      const height = 0.035;
+      const cornerRadius = 0.04;
+      const vertices = [];
+      const faces = [];
+
+      // Generate squircle outline
+      const points = [];
+      const cornerSegments = 4;
+
+      // Four corners with rounded edges
+      const corners = [
+        { cx: size - cornerRadius, cy: size - cornerRadius },
+        { cx: -size + cornerRadius, cy: size - cornerRadius },
+        { cx: -size + cornerRadius, cy: -size + cornerRadius },
+        { cx: size - cornerRadius, cy: -size + cornerRadius },
+      ];
+
+      corners.forEach((corner, cornerIdx) => {
+        for (let i = 0; i <= cornerSegments; i++) {
+          const angle =
+            (cornerIdx * Math.PI) / 2 + (i / cornerSegments) * (Math.PI / 2);
+          const x = corner.cx + Math.cos(angle) * cornerRadius;
+          const y = corner.cy + Math.sin(angle) * cornerRadius;
+          points.push({ x, y });
+        }
+      });
+
+      // Create vertices for top and bottom
+      points.forEach((p) => {
+        vertices.push({ x: p.x, y: p.y, z: 0 });
+        vertices.push({ x: p.x, y: p.y, z: height });
+      });
+
+      const numPoints = points.length;
+
+      // Top face
+      const topFace = [];
+      for (let i = 0; i < numPoints; i++) {
+        topFace.push(i * 2 + 1);
+      }
+      faces.push({ indices: topFace, color: apColors.top, type: "top" });
+
+      // Side faces
+      for (let i = 0; i < numPoints; i++) {
+        const next = (i + 1) % numPoints;
+        faces.push({
+          indices: [i * 2, next * 2, next * 2 + 1, i * 2 + 1],
+          color: apColors.side,
+          type: "side",
+        });
+      }
+
+      // Bottom face
+      const bottomFace = [];
+      for (let i = numPoints - 1; i >= 0; i--) {
+        bottomFace.push(i * 2);
+      }
+      faces.push({
+        indices: bottomFace,
+        color: apColors.bottom,
+        type: "bottom",
+      });
+
+      return { vertices, faces };
+    },
+  },
+  hospitality: {
+    name: "Hospitality",
+    // Wall-mounted rectangular box with ports on bottom
+    generate: function () {
+      const width = 0.12;
+      const height = 0.18;
+      const depth = 0.035;
+      const vertices = [
+        // Front face (Z+)
+        { x: -width, y: -height, z: depth },
+        { x: width, y: -height, z: depth },
+        { x: width, y: height, z: depth },
+        { x: -width, y: height, z: depth },
+        // Back face (Z-)
+        { x: -width, y: -height, z: 0 },
+        { x: width, y: -height, z: 0 },
+        { x: width, y: height, z: 0 },
+        { x: -width, y: height, z: 0 },
+      ];
+      const faces = [
+        { indices: [0, 1, 2, 3], color: apColors.top, type: "front" },
+        { indices: [5, 4, 7, 6], color: apColors.bottom, type: "back" },
+        { indices: [4, 0, 3, 7], color: apColors.side, type: "left" },
+        { indices: [1, 5, 6, 2], color: apColors.side, type: "right" },
+        { indices: [3, 2, 6, 7], color: apColors.side, type: "top" },
+        { indices: [4, 5, 1, 0], color: apColors.bottom, type: "bottom" },
+      ];
+      return { vertices, faces };
+    },
+  },
+  can: {
+    name: "Can",
+    // Outdoor AP, tall cylinder
+    generate: function () {
+      const radius = 0.08;
+      const height = 0.25;
+      const segments = 12;
+      const vertices = [];
+      const faces = [];
+
+      for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        vertices.push({ x, y, z: 0 });
+        vertices.push({ x, y, z: height });
+      }
+
+      // Top face
+      const topFace = [];
+      for (let i = 0; i < segments; i++) {
+        topFace.push(i * 2 + 1);
+      }
+      faces.push({ indices: topFace, color: apColors.top, type: "top" });
+
+      // Side faces
+      for (let i = 0; i < segments; i++) {
+        const next = (i + 1) % segments;
+        faces.push({
+          indices: [i * 2, next * 2, next * 2 + 1, i * 2 + 1],
+          color: apColors.side,
+          type: "side",
+        });
+      }
+
+      // Bottom face
+      const bottomFace = [];
+      for (let i = segments - 1; i >= 0; i--) {
+        bottomFace.push(i * 2);
+      }
+      faces.push({
+        indices: bottomFace,
+        color: apColors.bottom,
+        type: "bottom",
+      });
+
+      return { vertices, faces };
+    },
+  },
+  patch: {
+    name: "Patch Panel",
+    // Flat rectangular panel, wall-mounted
+    generate: function () {
+      const width = 0.2;
+      const height = 0.2;
+      const depth = 0.025;
+      const vertices = [
+        { x: -width, y: -height, z: depth },
+        { x: width, y: -height, z: depth },
+        { x: width, y: height, z: depth },
+        { x: -width, y: height, z: depth },
+        { x: -width, y: -height, z: 0 },
+        { x: width, y: -height, z: 0 },
+        { x: width, y: height, z: 0 },
+        { x: -width, y: height, z: 0 },
+      ];
+      const faces = [
+        { indices: [0, 1, 2, 3], color: apColors.top, type: "front" },
+        { indices: [5, 4, 7, 6], color: apColors.bottom, type: "back" },
+        { indices: [4, 0, 3, 7], color: apColors.side, type: "left" },
+        { indices: [1, 5, 6, 2], color: apColors.side, type: "right" },
+        { indices: [3, 2, 6, 7], color: apColors.side, type: "top" },
+        { indices: [4, 5, 1, 0], color: apColors.bottom, type: "bottom" },
+      ];
+      return { vertices, faces };
+    },
+  },
+  dipole: {
+    name: "Dipole",
+    // Vertical dipole antenna - thin cylinder
+    generate: function () {
+      const radius = 0.015;
+      const height = 0.4;
+      const segments = 8;
+      const vertices = [];
+      const faces = [];
+
+      for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        vertices.push({ x, y, z: -height / 2 });
+        vertices.push({ x, y, z: height / 2 });
+      }
+
+      // Top cap
+      const topFace = [];
+      for (let i = 0; i < segments; i++) {
+        topFace.push(i * 2 + 1);
+      }
+      faces.push({ indices: topFace, color: apColors.top, type: "top" });
+
+      // Side faces
+      for (let i = 0; i < segments; i++) {
+        const next = (i + 1) % segments;
+        faces.push({
+          indices: [i * 2, next * 2, next * 2 + 1, i * 2 + 1],
+          color: apColors.side,
+          type: "side",
+        });
+      }
+
+      // Bottom cap
+      const bottomFace = [];
+      for (let i = segments - 1; i >= 0; i--) {
+        bottomFace.push(i * 2);
+      }
+      faces.push({
+        indices: bottomFace,
+        color: apColors.bottom,
+        type: "bottom",
+      });
+
+      return { vertices, faces };
+    },
+  },
+  tube: {
+    name: "Tube",
+    // Tubular radome antenna - longer thin cylinder
+    generate: function () {
+      const radius = 0.03;
+      const height = 0.5;
+      const segments = 10;
+      const vertices = [];
+      const faces = [];
+
+      for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        vertices.push({ x, y, z: 0 });
+        vertices.push({ x, y, z: height });
+      }
+
+      // Top dome (simplified as flat)
+      const topFace = [];
+      for (let i = 0; i < segments; i++) {
+        topFace.push(i * 2 + 1);
+      }
+      faces.push({ indices: topFace, color: apColors.top, type: "top" });
+
+      // Side faces
+      for (let i = 0; i < segments; i++) {
+        const next = (i + 1) % segments;
+        faces.push({
+          indices: [i * 2, next * 2, next * 2 + 1, i * 2 + 1],
+          color: apColors.side,
+          type: "side",
+        });
+      }
+
+      // Bottom
+      const bottomFace = [];
+      for (let i = segments - 1; i >= 0; i--) {
+        bottomFace.push(i * 2);
+      }
+      faces.push({
+        indices: bottomFace,
+        color: apColors.bottom,
+        type: "bottom",
+      });
+
+      return { vertices, faces };
+    },
+  },
+  flat: {
+    name: "Flat",
+    // Table-top router like WRT54G
+    generate: function () {
+      const width = 0.15;
+      const depth = 0.12;
+      const height = 0.035;
+      const vertices = [
+        { x: -width, y: -depth, z: 0 },
+        { x: width, y: -depth, z: 0 },
+        { x: width, y: depth, z: 0 },
+        { x: -width, y: depth, z: 0 },
+        { x: -width, y: -depth, z: height },
+        { x: width, y: -depth, z: height },
+        { x: width, y: depth, z: height },
+        { x: -width, y: depth, z: height },
+      ];
+      const faces = [
+        { indices: [4, 5, 6, 7], color: apColors.top, type: "top" },
+        { indices: [0, 3, 2, 1], color: apColors.bottom, type: "bottom" },
+        { indices: [0, 1, 5, 4], color: apColors.side, type: "front" },
+        { indices: [2, 3, 7, 6], color: apColors.side, type: "back" },
+        { indices: [3, 0, 4, 7], color: apColors.side, type: "left" },
+        { indices: [1, 2, 6, 5], color: apColors.side, type: "right" },
+      ];
+      return { vertices, faces };
+    },
+  },
+  standing: {
+    name: "Standing",
+    // Upright device like a PlayStation 5 or tower router
+    generate: function () {
+      const width = 0.06;
+      const depth = 0.15;
+      const height = 0.3;
+      const vertices = [
+        { x: -width, y: -depth, z: 0 },
+        { x: width, y: -depth, z: 0 },
+        { x: width, y: depth, z: 0 },
+        { x: -width, y: depth, z: 0 },
+        { x: -width, y: -depth, z: height },
+        { x: width, y: -depth, z: height },
+        { x: width, y: depth, z: height },
+        { x: -width, y: depth, z: height },
+      ];
+      const faces = [
+        { indices: [4, 5, 6, 7], color: apColors.top, type: "top" },
+        { indices: [0, 3, 2, 1], color: apColors.bottom, type: "bottom" },
+        { indices: [0, 1, 5, 4], color: apColors.side, type: "front" },
+        { indices: [2, 3, 7, 6], color: apColors.side, type: "back" },
+        { indices: [3, 0, 4, 7], color: apColors.side, type: "left" },
+        { indices: [1, 2, 6, 5], color: apColors.side, type: "right" },
+      ];
+      return { vertices, faces };
+    },
+  },
+  box: {
+    name: "Box",
+    // Generic rectangular box AP
+    generate: function () {
+      const width = 0.1;
+      const depth = 0.1;
+      const height = 0.05;
+      const vertices = [
+        { x: -width, y: -depth, z: 0 },
+        { x: width, y: -depth, z: 0 },
+        { x: width, y: depth, z: 0 },
+        { x: -width, y: depth, z: 0 },
+        { x: -width, y: -depth, z: height },
+        { x: width, y: -depth, z: height },
+        { x: width, y: depth, z: height },
+        { x: -width, y: depth, z: height },
+      ];
+      const faces = [
+        { indices: [4, 5, 6, 7], color: apColors.top, type: "top" },
+        { indices: [0, 3, 2, 1], color: apColors.bottom, type: "bottom" },
+        { indices: [0, 1, 5, 4], color: apColors.side, type: "front" },
+        { indices: [2, 3, 7, 6], color: apColors.side, type: "back" },
+        { indices: [3, 0, 4, 7], color: apColors.side, type: "left" },
+        { indices: [1, 2, 6, 5], color: apColors.side, type: "right" },
+      ];
+      return { vertices, faces };
+    },
+  },
+};
+
 // World orientation - FIXED, never changes
 // Z is "up", ground plane is below the antenna
 const worldOrientation = {
@@ -35,7 +480,11 @@ const antennaOrientation = {
 const view3D = {
   rotationX: -30,
   rotationY: 45,
+  zoom: 1.0,
+  minZoom: 0.25,
+  maxZoom: 4.0,
   isDragging: false,
+  isZooming: false,
   lastMouseX: 0,
   lastMouseY: 0,
   showWorldAxes: true,
@@ -149,6 +598,14 @@ function initializeEventListeners() {
     .addEventListener("change", redraw3D);
   document.getElementById("reset-view").addEventListener("click", resetView3D);
 
+  // Zoom controls
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    setZoom(view3D.zoom * 1.25);
+  });
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    setZoom(view3D.zoom / 1.25);
+  });
+
   // World/Antenna axes toggles
   document.getElementById("show-world-axes").addEventListener("change", (e) => {
     view3D.showWorldAxes = e.target.checked;
@@ -165,6 +622,12 @@ function initializeEventListeners() {
   // Mount type selector
   document.getElementById("mount-type").addEventListener("change", (e) => {
     setMountType(e.target.value);
+  });
+
+  // AP model type selector
+  document.getElementById("ap-model-type").addEventListener("change", (e) => {
+    apModel.type = e.target.value;
+    redraw3D();
   });
 
   // Ground plane height slider
@@ -396,18 +859,21 @@ function redrawAll() {
 }
 
 function redrawPolarCharts() {
-  drawPolarChart("azimuth-chart", antennaData.azimuth, "#1976d2", "X", "Y");
+  // Azimuth (XY) rotates around Z axis - use Z color (yellow)
+  drawPolarChart("azimuth-chart", antennaData.azimuth, axisColors.z, "X", "Y");
+  // Elevation XZ rotates around Y axis - use Y color (purple)
   drawPolarChart(
     "elevation-xz-chart",
     antennaData.elevationXZ,
-    "#43a047",
+    axisColors.y,
     "X",
     "Z",
   );
+  // Elevation YZ rotates around X axis - use X color (orange)
   drawPolarChart(
     "elevation-yz-chart",
     antennaData.elevationYZ,
-    "#fb8c00",
+    axisColors.x,
     "Y",
     "Z",
   );
@@ -478,27 +944,37 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
   }
 
   // Draw axis arrows and labels
+  // Get axis color based on label
+  const axis1Color = axisColors[axis1Label.toLowerCase()];
+  const axis2Color = axisColors[axis2Label.toLowerCase()];
+
   // Positive axis1 (right, 0°)
-  ctx.strokeStyle = "#e53935";
+  ctx.strokeStyle = axis1Color;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(centerX, centerY);
   ctx.lineTo(centerX + maxRadius + 5, centerY);
   ctx.stroke();
-  drawArrowHead(ctx, centerX + maxRadius + 5, centerY, 0, "#e53935");
-  ctx.fillStyle = "#e53935";
+  drawArrowHead(ctx, centerX + maxRadius + 5, centerY, 0, axis1Color);
+  ctx.fillStyle = axis1Color;
   ctx.font = "bold 12px sans-serif";
   ctx.textAlign = "left";
   ctx.fillText(`+${axis1Label}`, centerX + maxRadius + 12, centerY + 4);
 
   // Positive axis2 (up, 90° in our coordinate system = -90° on canvas)
-  ctx.strokeStyle = "#43a047";
+  ctx.strokeStyle = axis2Color;
   ctx.beginPath();
   ctx.moveTo(centerX, centerY);
   ctx.lineTo(centerX, centerY - maxRadius - 5);
   ctx.stroke();
-  drawArrowHead(ctx, centerX, centerY - maxRadius - 5, -Math.PI / 2, "#43a047");
-  ctx.fillStyle = "#43a047";
+  drawArrowHead(
+    ctx,
+    centerX,
+    centerY - maxRadius - 5,
+    -Math.PI / 2,
+    axis2Color,
+  );
+  ctx.fillStyle = axis2Color;
   ctx.textAlign = "center";
   ctx.fillText(`+${axis2Label}`, centerX, centerY - maxRadius - 18);
 
@@ -605,6 +1081,69 @@ function setMountType(type) {
   redraw3D();
 }
 
+// Draw AP Model
+function drawAPModel(ctx, projectAntennaToScreen) {
+  if (apModel.type === "none") return;
+
+  const modelDef = apModelDefinitions[apModel.type];
+  if (!modelDef) return;
+
+  // Get or generate model geometry
+  let geometry;
+  if (modelDef.generate) {
+    geometry = modelDef.generate();
+  } else {
+    geometry = {
+      vertices: modelDef.vertices || [],
+      faces: modelDef.faces || [],
+    };
+  }
+
+  if (geometry.vertices.length === 0) return;
+
+  // Project all vertices to screen coordinates
+  const projectedVertices = geometry.vertices.map((v) => {
+    return projectAntennaToScreen(v.x, v.y, v.z);
+  });
+
+  // Calculate face depths for sorting (painter's algorithm)
+  const facesWithDepth = geometry.faces.map((face, index) => {
+    let avgDepth = 0;
+    face.indices.forEach((i) => {
+      avgDepth += projectedVertices[i].z;
+    });
+    avgDepth /= face.indices.length;
+    return { face, index, avgDepth };
+  });
+
+  // Sort faces back-to-front (smaller depth = farther away = draw first)
+  facesWithDepth.sort((a, b) => a.avgDepth - b.avgDepth);
+
+  // Draw faces
+  for (const { face } of facesWithDepth) {
+    if (face.indices.length < 3) continue;
+
+    ctx.beginPath();
+    const firstVertex = projectedVertices[face.indices[0]];
+    ctx.moveTo(firstVertex.x, firstVertex.y);
+
+    for (let i = 1; i < face.indices.length; i++) {
+      const vertex = projectedVertices[face.indices[i]];
+      ctx.lineTo(vertex.x, vertex.y);
+    }
+    ctx.closePath();
+
+    // Fill with face color
+    ctx.fillStyle = face.color;
+    ctx.fill();
+
+    // Draw outline
+    ctx.strokeStyle = apColors.outline;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
 // 3D Rendering
 function redraw3D() {
   const canvas = document.getElementById("canvas-3d");
@@ -618,7 +1157,7 @@ function redraw3D() {
 
   const centerX = width / 2;
   const centerY = height / 2;
-  const scale = Math.min(width, height) / 5;
+  const scale = (Math.min(width, height) / 5) * view3D.zoom;
 
   const showGroundPlane = document.getElementById("show-ground-plane").checked;
 
@@ -713,39 +1252,42 @@ function redraw3D() {
 
     ctx.lineWidth = 3;
 
-    // X axis (red) - toward viewer (down-left in isometric view)
+    // X axis (orange) - toward viewer (down-left in isometric view)
     // In our coordinate system, this is the +Y direction
-    ctx.strokeStyle = "#e53935";
+    ctx.strokeStyle = axisColors.x;
     const xEnd = projectWorldToScreen(cornerX, cornerY + axisLength, groundZ);
     ctx.beginPath();
     ctx.moveTo(origin.x, origin.y);
     ctx.lineTo(xEnd.x, xEnd.y);
     ctx.stroke();
-    ctx.fillStyle = "#e53935";
+    ctx.fillStyle = axisColors.x;
     ctx.font = "bold 12px sans-serif";
     ctx.fillText("X", xEnd.x + 8, xEnd.y + 4);
 
-    // Y axis (green) - to the right (down-right in isometric view)
+    // Y axis (purple) - to the right (down-right in isometric view)
     // In our coordinate system, this is the +X direction
-    ctx.strokeStyle = "#43a047";
+    ctx.strokeStyle = axisColors.y;
     const yEnd = projectWorldToScreen(cornerX + axisLength, cornerY, groundZ);
     ctx.beginPath();
     ctx.moveTo(origin.x, origin.y);
     ctx.lineTo(yEnd.x, yEnd.y);
     ctx.stroke();
-    ctx.fillStyle = "#43a047";
+    ctx.fillStyle = axisColors.y;
     ctx.fillText("Y", yEnd.x + 8, yEnd.y + 4);
 
-    // Z axis (blue) - up
-    ctx.strokeStyle = "#1e88e5";
+    // Z axis (yellow) - up
+    ctx.strokeStyle = axisColors.z;
     const zEnd = projectWorldToScreen(cornerX, cornerY, groundZ + axisLength);
     ctx.beginPath();
     ctx.moveTo(origin.x, origin.y);
     ctx.lineTo(zEnd.x, zEnd.y);
     ctx.stroke();
-    ctx.fillStyle = "#1e88e5";
+    ctx.fillStyle = axisColors.z;
     ctx.fillText("Z", zEnd.x + 8, zEnd.y + 4);
   }
+
+  // Draw AP model (before antenna patterns so patterns appear on top)
+  drawAPModel(ctx, projectAntennaToScreen);
 
   const minGain = antennaData.minGain;
   const maxGain = antennaData.maxGain;
@@ -757,9 +1299,9 @@ function redraw3D() {
   }
 
   // Draw Azimuth pattern (XY plane in physics coords, Z=0)
-  // Physics X maps to internal Y, Physics Y maps to internal X
+  // Rotates around Z axis - use Z color (yellow)
   if (planeVisibility.azimuth && antennaData.azimuth.length > 0) {
-    ctx.strokeStyle = "#1976d2";
+    ctx.strokeStyle = axisColors.z;
     ctx.lineWidth = 2;
     ctx.beginPath();
 
@@ -787,14 +1329,14 @@ function redraw3D() {
 
     ctx.closePath();
     ctx.stroke();
-    ctx.fillStyle = "#1976d233";
+    ctx.fillStyle = axisColors.z + "33";
     ctx.fill();
   }
 
   // Draw Elevation XZ pattern (X-Z plane in physics coords, Y=0)
-  // Physics X maps to internal Y
+  // Rotates around Y axis - use Y color (purple)
   if (planeVisibility.elevationXZ && antennaData.elevationXZ.length > 0) {
-    ctx.strokeStyle = "#43a047";
+    ctx.strokeStyle = axisColors.y;
     ctx.lineWidth = 2;
     ctx.beginPath();
 
@@ -821,14 +1363,14 @@ function redraw3D() {
 
     ctx.closePath();
     ctx.stroke();
-    ctx.fillStyle = "#43a04733";
+    ctx.fillStyle = axisColors.y + "33";
     ctx.fill();
   }
 
   // Draw Elevation YZ pattern (Y-Z plane in physics coords, X=0)
-  // Physics Y maps to internal X
+  // Rotates around X axis - use X color (orange)
   if (planeVisibility.elevationYZ && antennaData.elevationYZ.length > 0) {
-    ctx.strokeStyle = "#fb8c00";
+    ctx.strokeStyle = axisColors.x;
     ctx.lineWidth = 2;
     ctx.beginPath();
 
@@ -855,7 +1397,7 @@ function redraw3D() {
 
     ctx.closePath();
     ctx.stroke();
-    ctx.fillStyle = "#fb8c0033";
+    ctx.fillStyle = axisColors.x + "33";
     ctx.fill();
   }
 
@@ -870,35 +1412,35 @@ function redraw3D() {
 
     // X axis (orange) - beam direction (toward viewer in default orientation)
     // In our internal coords, this maps to +Y
-    ctx.strokeStyle = "#ff7043";
+    ctx.strokeStyle = axisColors.x;
     const xEnd = projectAntennaToScreen(0, axisLength, 0);
     ctx.beginPath();
     ctx.moveTo(origin.x, origin.y);
     ctx.lineTo(xEnd.x, xEnd.y);
     ctx.stroke();
-    ctx.fillStyle = "#ff7043";
+    ctx.fillStyle = axisColors.x;
     ctx.font = "bold 12px sans-serif";
     ctx.fillText("X", xEnd.x + 8, xEnd.y + 4);
 
-    // Y axis (teal) - side (to the right in default orientation)
+    // Y axis (purple) - side (to the right in default orientation)
     // In our internal coords, this maps to +X
-    ctx.strokeStyle = "#26a69a";
+    ctx.strokeStyle = axisColors.y;
     const yEnd = projectAntennaToScreen(axisLength, 0, 0);
     ctx.beginPath();
     ctx.moveTo(origin.x, origin.y);
     ctx.lineTo(yEnd.x, yEnd.y);
     ctx.stroke();
-    ctx.fillStyle = "#26a69a";
+    ctx.fillStyle = axisColors.y;
     ctx.fillText("Y", yEnd.x + 8, yEnd.y + 4);
 
-    // Z axis (purple) - "out" from mounting surface
-    ctx.strokeStyle = "#7e57c2";
+    // Z axis (yellow) - "out" from mounting surface
+    ctx.strokeStyle = axisColors.z;
     const zEnd = projectAntennaToScreen(0, 0, axisLength);
     ctx.beginPath();
     ctx.moveTo(origin.x, origin.y);
     ctx.lineTo(zEnd.x, zEnd.y);
     ctx.stroke();
-    ctx.fillStyle = "#7e57c2";
+    ctx.fillStyle = axisColors.z;
     ctx.fillText("Z", zEnd.x + 8, zEnd.y + 4);
 
     ctx.setLineDash([]); // Reset to solid lines
@@ -907,37 +1449,55 @@ function redraw3D() {
 
 // 3D Mouse interaction
 function start3DDrag(e) {
-  view3D.isDragging = true;
+  if (e.shiftKey) {
+    view3D.isZooming = true;
+  } else {
+    view3D.isDragging = true;
+  }
   view3D.lastMouseX = e.clientX;
   view3D.lastMouseY = e.clientY;
 }
 
 function drag3D(e) {
-  if (!view3D.isDragging) return;
+  if (!view3D.isDragging && !view3D.isZooming) return;
 
   const deltaX = e.clientX - view3D.lastMouseX;
   const deltaY = e.clientY - view3D.lastMouseY;
 
-  view3D.rotationY += deltaX * 0.5;
-  view3D.rotationX -= deltaY * 0.5;
+  if (view3D.isZooming) {
+    // Shift+drag: zoom based on vertical movement
+    const zoomFactor = 1 - deltaY * 0.005;
+    setZoom(view3D.zoom * zoomFactor);
+  } else {
+    // Normal drag: rotate
+    view3D.rotationY -= deltaX * 0.5;
+    view3D.rotationX -= deltaY * 0.5;
 
-  // Clamp X rotation
-  view3D.rotationX = Math.max(-90, Math.min(90, view3D.rotationX));
+    // Clamp X rotation
+    view3D.rotationX = Math.max(-90, Math.min(90, view3D.rotationX));
+    redraw3D();
+  }
 
   view3D.lastMouseX = e.clientX;
   view3D.lastMouseY = e.clientY;
-
-  redraw3D();
 }
 
 function end3DDrag() {
   view3D.isDragging = false;
+  view3D.isZooming = false;
+}
+
+function setZoom(newZoom) {
+  view3D.zoom = Math.max(view3D.minZoom, Math.min(view3D.maxZoom, newZoom));
+  document.getElementById("zoom-level").textContent =
+    Math.round(view3D.zoom * 100) + "%";
+  redraw3D();
 }
 
 function resetView3D() {
   view3D.rotationX = -30;
   view3D.rotationY = 45;
-  redraw3D();
+  setZoom(1.0);
 }
 
 // Export functionality

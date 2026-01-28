@@ -43,6 +43,25 @@
                     </div>
 
                     <div class="control-group">
+                        <h3>AP Model</h3>
+                        <div class="control-row">
+                            <select id="ap-model-type">
+                                <option value="none">None</option>
+                                <option value="disc" selected>Disc</option>
+                                <option value="squircle">Squircle</option>
+                                <option value="hospitality">Hospitality</option>
+                                <option value="can">Can</option>
+                                <option value="patch">Patch Panel</option>
+                                <option value="dipole">Dipole</option>
+                                <option value="tube">Tube</option>
+                                <option value="flat">Flat</option>
+                                <option value="standing">Standing</option>
+                                <option value="box">Box</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
                         <h3>Ground Plane</h3>
                         <div class="control-row">
                             <label>
@@ -93,6 +112,11 @@
                     </div>
 
                     <div class="control-group">
+                        <div class="control-row zoom-controls">
+                            <button class="small-btn" id="zoom-out">−</button>
+                            <span id="zoom-level">100%</span>
+                            <button class="small-btn" id="zoom-in">+</button>
+                        </div>
                         <button class="small-btn" id="reset-view">
                             Reset View
                         </button>
@@ -149,7 +173,9 @@
                     </div>
                 </div>
 
-                <div class="instructions">Click and drag to rotate</div>
+                <div class="instructions">
+                    Drag to rotate · Shift+drag to zoom
+                </div>
             </main>
         </div>
 
