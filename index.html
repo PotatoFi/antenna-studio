@@ -32,11 +32,7 @@
                             <span>Azimuth / Horizontal / XY</span>
                         </div>
                         <div class="pattern-chart">
-                            <canvas
-                                id="azimuth-chart"
-                                width="200"
-                                height="200"
-                            ></canvas>
+                            <canvas id="azimuth-chart"></canvas>
                         </div>
                         <div class="pattern-controls">
                             <button
@@ -50,7 +46,7 @@
                                     class="toolbar-button rotate-btn"
                                     data-plane="azimuth"
                                     data-direction="ccw"
-                                    title="Rotate Counter-clockwise"
+                                    title="Rotate counter-clockwise by 90°"
                                 >
                                     &#8634;
                                 </button>
@@ -58,7 +54,7 @@
                                     class="toolbar-button rotate-btn"
                                     data-plane="azimuth"
                                     data-direction="cw"
-                                    title="Rotate Clockwise"
+                                    title="Rotate clockwise by 90°"
                                 >
                                     &#8635;
                                 </button>
@@ -68,7 +64,7 @@
                                     class="toolbar-button swap-btn"
                                     data-plane="azimuth"
                                     data-target="elevation-xz"
-                                    title="Swap with XZ"
+                                    title="Swap this pattern to the XZ plane"
                                 >
                                     Swap to XZ
                                 </button>
@@ -76,13 +72,15 @@
                                     class="toolbar-button swap-btn"
                                     data-plane="azimuth"
                                     data-target="elevation-yz"
-                                    title="Swap with YZ"
+                                    title="Swap this pattern to the YZ plane"
                                 >
                                     Swap to YZ
                                 </button>
                             </div>
                         </div>
                     </div>
+
+                    <hr />
 
                     <!-- Elevation XZ Pattern -->
                     <div class="pattern-section">
@@ -91,11 +89,7 @@
                             <span>Elevation / Vertical / XZ</span>
                         </div>
                         <div class="pattern-chart">
-                            <canvas
-                                id="elevation-xz-chart"
-                                width="200"
-                                height="200"
-                            ></canvas>
+                            <canvas id="elevation-xz-chart"></canvas>
                         </div>
                         <div class="pattern-controls">
                             <button
@@ -109,7 +103,7 @@
                                     class="toolbar-button rotate-btn"
                                     data-plane="elevation-xz"
                                     data-direction="ccw"
-                                    title="Rotate Counter-clockwise"
+                                    title="Rotate counter-clockwise by 90°"
                                 >
                                     &#8634;
                                 </button>
@@ -117,7 +111,7 @@
                                     class="toolbar-button rotate-btn"
                                     data-plane="elevation-xz"
                                     data-direction="cw"
-                                    title="Rotate Clockwise"
+                                    title="Rotate clockwise by 90°"
                                 >
                                     &#8635;
                                 </button>
@@ -127,7 +121,7 @@
                                     class="toolbar-button swap-btn"
                                     data-plane="elevation-xz"
                                     data-target="azimuth"
-                                    title="Swap with XY"
+                                    title="Swap this pattern to the XY plane"
                                 >
                                     Swap to XY
                                 </button>
@@ -135,13 +129,15 @@
                                     class="toolbar-button swap-btn"
                                     data-plane="elevation-xz"
                                     data-target="elevation-yz"
-                                    title="Swap with YZ"
+                                    title="Swap this pattern to the YZ plane"
                                 >
                                     Swap to YZ
                                 </button>
                             </div>
                         </div>
                     </div>
+
+                    <hr />
 
                     <!-- Elevation YZ Pattern -->
                     <div class="pattern-section">
@@ -150,11 +146,7 @@
                             <span>Elevation / Vertical / YZ</span>
                         </div>
                         <div class="pattern-chart">
-                            <canvas
-                                id="elevation-yz-chart"
-                                width="200"
-                                height="200"
-                            ></canvas>
+                            <canvas id="elevation-yz-chart"></canvas>
                         </div>
                         <div class="pattern-controls">
                             <button
@@ -168,7 +160,7 @@
                                     class="toolbar-button rotate-btn"
                                     data-plane="elevation-yz"
                                     data-direction="ccw"
-                                    title="Rotate Counter-clockwise"
+                                    title="Rotate counter-clockwise by 90°"
                                 >
                                     &#8634;
                                 </button>
@@ -176,7 +168,7 @@
                                     class="toolbar-button rotate-btn"
                                     data-plane="elevation-yz"
                                     data-direction="cw"
-                                    title="Rotate Clockwise"
+                                    title="Rotate clockwise by 90°"
                                 >
                                     &#8635;
                                 </button>
@@ -186,7 +178,7 @@
                                     class="toolbar-button swap-btn"
                                     data-plane="elevation-yz"
                                     data-target="azimuth"
-                                    title="Swap with XY"
+                                    title="Swap this pattern to the XY plane"
                                 >
                                     Swap to XY
                                 </button>
@@ -194,7 +186,7 @@
                                     class="toolbar-button swap-btn"
                                     data-plane="elevation-yz"
                                     data-target="elevation-xz"
-                                    title="Swap with XZ"
+                                    title="Swap this pattern to the XZ plane"
                                 >
                                     Swap to XZ
                                 </button>
@@ -208,13 +200,21 @@
         <!-- Left Toolbar -->
         <div class="tool-menu">
             <!-- Edit -->
-            <button class="button" id="edit-btn" title="Edit Antenna">
+            <button
+                class="button"
+                id="edit-btn"
+                title="Add and edit antenna patterns"
+            >
                 <i class="bx bx-edit"></i>
             </button>
 
             <!-- Mounting Type -->
             <div class="dropdown-button">
-                <button class="button" id="mount-btn" title="Mounting Type">
+                <button
+                    class="button"
+                    id="mount-btn"
+                    title="Change the mounting type"
+                >
                     <i class="bx bx-home"></i>
                 </button>
                 <div class="dropdown-menu" id="mount-menu">
@@ -241,7 +241,11 @@
 
             <!-- Model Type -->
             <div class="dropdown-button">
-                <button class="button" id="model-btn" title="Model Type">
+                <button
+                    class="button"
+                    id="model-btn"
+                    title="Change the formfactor of the AP or antenna"
+                >
                     <i class="bx bx-cube"></i>
                 </button>
                 <div class="dropdown-menu" id="model-menu">
@@ -304,7 +308,11 @@
 
             <!-- View -->
             <div class="dropdown-button">
-                <button class="button" id="view-btn" title="View Options">
+                <button
+                    class="button"
+                    id="view-btn"
+                    title="Show and hide chart elements"
+                >
                     <i class="bx bx-show"></i>
                 </button>
                 <div class="dropdown-menu" id="view-menu">
@@ -335,47 +343,30 @@
                         <span id="ground-height-value">-1.5</span>
                     </div>
                     <h4>Planes</h4>
-                    <div class="plane-toggle" data-plane="azimuth">
-                        <div class="plane-info">
-                            <span class="color-indicator azimuth"></span>
-                            <span class="plane-name">Azimuth (XY)</span>
-                        </div>
-                        <button
-                            class="toggle-visibility-btn"
-                            title="Toggle visibility"
-                        >
-                            &#128065;
-                        </button>
-                    </div>
-                    <div class="plane-toggle" data-plane="elevation-xz">
-                        <div class="plane-info">
-                            <span class="color-indicator elevation-xz"></span>
-                            <span class="plane-name">Elevation (XZ)</span>
-                        </div>
-                        <button
-                            class="toggle-visibility-btn"
-                            title="Toggle visibility"
-                        >
-                            &#128065;
-                        </button>
-                    </div>
-                    <div class="plane-toggle" data-plane="elevation-yz">
-                        <div class="plane-info">
-                            <span class="color-indicator elevation-yz"></span>
-                            <span class="plane-name">Elevation (YZ)</span>
-                        </div>
-                        <button
-                            class="toggle-visibility-btn"
-                            title="Toggle visibility"
-                        >
-                            &#128065;
-                        </button>
-                    </div>
+                    <label>
+                        <input type="checkbox" id="show-azimuth" checked />
+                        <span class="color-indicator azimuth"></span>
+                        Azimuth (XY)
+                    </label>
+                    <label>
+                        <input type="checkbox" id="show-elevation-xz" checked />
+                        <span class="color-indicator elevation-xz"></span>
+                        Elevation (XZ)
+                    </label>
+                    <label>
+                        <input type="checkbox" id="show-elevation-yz" />
+                        <span class="color-indicator elevation-yz"></span>
+                        Elevation (YZ)
+                    </label>
                 </div>
             </div>
 
             <!-- Export -->
-            <button class="button" id="export-btn" title="Export CSV">
+            <button
+                class="button"
+                id="export-btn"
+                title="Download a summary CSV file"
+            >
                 <i class="bx bx-download"></i>
             </button>
 

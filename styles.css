@@ -209,52 +209,6 @@ body {
     text-align: right;
 }
 
-.dropdown-menu .plane-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px;
-    background: var(--foreground);
-    border-radius: 6px;
-    margin-bottom: 4px;
-}
-
-.dropdown-menu .plane-toggle:last-child {
-    margin-bottom: 0;
-}
-
-.dropdown-menu .plane-toggle .plane-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.dropdown-menu .plane-toggle .plane-name {
-    font-size: 13px;
-}
-
-.dropdown-menu .plane-toggle .toggle-visibility-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 2px 6px;
-    font-size: 12px;
-    color: var(--text);
-    border-radius: 4px;
-}
-
-.dropdown-menu .plane-toggle .toggle-visibility-btn:hover {
-    background: rgba(0, 0, 0, 0.1);
-}
-
-.dropdown-menu .plane-toggle.hidden {
-    opacity: 0.5;
-}
-
-.dropdown-menu .plane-toggle.hidden .plane-name {
-    text-decoration: line-through;
-}
-
 /* Toolbar sections */
 .toolbar-section {
     display: flex;
@@ -290,9 +244,6 @@ body {
 
 /* Pattern sections in Edit pane */
 .pattern-section {
-    background: var(--background);
-    border-radius: 6px;
-    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -312,8 +263,9 @@ body {
 }
 
 .pattern-chart canvas {
-    background: var(--panel-bg);
-    border-radius: 6px;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
 }
 
 .pattern-controls {
@@ -394,10 +346,13 @@ body {
 
 /* Color indicators */
 .color-indicator {
+    display: inline-block;
     width: 12px;
     height: 12px;
     border-radius: 2px;
     flex-shrink: 0;
+    vertical-align: middle;
+    margin-right: 4px;
 }
 
 .color-indicator.azimuth {
@@ -410,48 +365,6 @@ body {
 
 .color-indicator.elevation-yz {
     background: #e04040;
-}
-
-/* Plane toggles */
-.plane-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px;
-    background: var(--foreground);
-    border-radius: 6px;
-}
-
-.plane-toggle .plane-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.plane-toggle .plane-name {
-    font-size: 14px;
-}
-
-.plane-toggle .toggle-visibility-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px 8px;
-    font-size: 14px;
-    color: var(--text);
-    border-radius: 4px;
-}
-
-.plane-toggle .toggle-visibility-btn:hover {
-    background: rgba(0, 0, 0, 0.1);
-}
-
-.plane-toggle.hidden {
-    opacity: 0.5;
-}
-
-.plane-toggle.hidden .plane-name {
-    text-decoration: line-through;
 }
 
 /* Responsive */

@@ -502,14 +502,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initializeEventListeners();
   loadSampleData();
   resizeCanvas3D();
-
-  // Initialize YZ plane toggle as hidden (since planeVisibility.elevationYZ is false)
-  const yzToggle = document.querySelector(
-    '.plane-toggle[data-plane="elevation-yz"]',
-  );
-  if (yzToggle) {
-    yzToggle.classList.add("hidden");
-  }
 });
 
 function initializeEventListeners() {
@@ -662,14 +654,23 @@ function initializeEventListeners() {
     redraw3D();
   });
 
-  // Plane visibility toggles
-  document.querySelectorAll(".toggle-visibility-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const planeToggle = e.target.closest(".plane-toggle");
-      const plane = planeToggle.dataset.plane;
-      togglePlaneVisibility(plane);
-    });
+  // Plane visibility checkboxes
+  document.getElementById("show-azimuth").addEventListener("change", (e) => {
+    planeVisibility.azimuth = e.target.checked;
+    redraw3D();
   });
+  document
+    .getElementById("show-elevation-xz")
+    .addEventListener("change", (e) => {
+      planeVisibility.elevationXZ = e.target.checked;
+      redraw3D();
+    });
+  document
+    .getElementById("show-elevation-yz")
+    .addEventListener("change", (e) => {
+      planeVisibility.elevationYZ = e.target.checked;
+      redraw3D();
+    });
 
   // 3D canvas mouse interaction
   const canvas3d = document.getElementById("canvas-3d");
@@ -759,24 +760,6 @@ function closeAllDropdowns() {
   activeDropdown = null;
 }
 
-// Plane visibility
-function togglePlaneVisibility(plane) {
-  const dataKey = planeToDataKey(plane);
-  planeVisibility[dataKey] = !planeVisibility[dataKey];
-
-  // Update UI
-  const planeToggle = document.querySelector(
-    `.plane-toggle[data-plane="${plane}"]`,
-  );
-  if (planeVisibility[dataKey]) {
-    planeToggle.classList.remove("hidden");
-  } else {
-    planeToggle.classList.add("hidden");
-  }
-
-  redraw3D();
-}
-
 function planeToDataKey(plane) {
   switch (plane) {
     case "azimuth":
@@ -832,11 +815,11 @@ function pastePatternFromClipboard(plane, csvText) {
     antennaData[dataKey] = data;
     // Make sure plane is visible when loading new data
     planeVisibility[dataKey] = true;
-    const planeToggle = document.querySelector(
-      `.plane-toggle[data-plane="${plane}"]`,
-    );
-    if (planeToggle) {
-      planeToggle.classList.remove("hidden");
+    // Update checkbox to reflect visibility
+    const checkboxId = `show-${plane}`;
+    const checkbox = document.getElementById(checkboxId);
+    if (checkbox) {
+      checkbox.checked = true;
     }
     redrawAll();
   }
@@ -883,12 +866,11 @@ function swapPatterns(plane1, plane2) {
   // Enable visibility for the target plane (plane2)
   planeVisibility[dataKey2] = true;
 
-  // Update visibility UI for target plane
-  const planeToggle2 = document.querySelector(
-    `.plane-toggle[data-plane="${plane2}"]`,
-  );
-  if (planeToggle2) {
-    planeToggle2.classList.remove("hidden");
+  // Update checkbox to reflect visibility
+  const checkboxId = `show-${plane2}`;
+  const checkbox = document.getElementById(checkboxId);
+  if (checkbox) {
+    checkbox.checked = true;
   }
 
   // Redraw
@@ -931,7 +913,36 @@ function redrawAll() {
   redraw3D();
 }
 
+// Resize polar chart canvases to match their display size
+function resizePolarCharts() {
+  const chartIds = [
+    "azimuth-chart",
+    "elevation-xz-chart",
+    "elevation-yz-chart",
+  ];
+  const dpr = window.devicePixelRatio || 1;
+
+  for (const id of chartIds) {
+    const canvas = document.getElementById(id);
+    if (!canvas) continue;
+
+    const rect = canvas.getBoundingClientRect();
+    const size = Math.floor(rect.width);
+
+    if (size > 0) {
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+      canvas.style.width = size + "px";
+      canvas.style.height = size + "px";
+
+      const ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
+    }
+  }
+}
+
 function redrawPolarCharts() {
+  resizePolarCharts();
   // Azimuth (XY) rotates around Z axis - use Z color (blue)
   drawPolarChart("azimuth-chart", antennaData.azimuth, axisColors.z, "X", "Y");
   // Elevation XZ rotates around Y axis - use Y color (green)
@@ -958,8 +969,11 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
   if (!canvas) return;
 
   const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
+  const rect = canvas.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  if (width === 0 || height === 0) return;
+
   const centerX = width / 2;
   const centerY = height / 2;
   const maxRadius = Math.min(width, height) / 2 - 30;
