@@ -202,20 +202,21 @@ const apModelDefinitions = {
   },
   can: {
     name: "Can",
-    // Outdoor AP, tall cylinder
+    // Outdoor AP, wide short cylinder
     generate: function () {
-      const radius = 0.08;
-      const height = 0.25;
+      const radius = 0.16;
+      const height = 0.18;
       const segments = 12;
       const vertices = [];
       const faces = [];
 
+      const halfHeight = height / 2;
       for (let i = 0; i < segments; i++) {
         const angle = (i / segments) * Math.PI * 2;
         const x = Math.cos(angle) * radius;
         const y = Math.sin(angle) * radius;
-        vertices.push({ x, y, z: 0 });
-        vertices.push({ x, y, z: height });
+        vertices.push({ x, y, z: -halfHeight });
+        vertices.push({ x, y, z: halfHeight });
       }
 
       // Top face
@@ -409,6 +410,34 @@ const apModelDefinitions = {
     generate: function () {
       const width = 0.06;
       const depth = 0.15;
+      const height = 0.3;
+      const vertices = [
+        { x: -width, y: -depth, z: 0 },
+        { x: width, y: -depth, z: 0 },
+        { x: width, y: depth, z: 0 },
+        { x: -width, y: depth, z: 0 },
+        { x: -width, y: -depth, z: height },
+        { x: width, y: -depth, z: height },
+        { x: width, y: depth, z: height },
+        { x: -width, y: depth, z: height },
+      ];
+      const faces = [
+        { indices: [4, 5, 6, 7], color: apColors.top, type: "top" },
+        { indices: [0, 3, 2, 1], color: apColors.bottom, type: "bottom" },
+        { indices: [0, 1, 5, 4], color: apColors.side, type: "front" },
+        { indices: [2, 3, 7, 6], color: apColors.side, type: "back" },
+        { indices: [3, 0, 4, 7], color: apColors.side, type: "left" },
+        { indices: [1, 2, 6, 5], color: apColors.side, type: "right" },
+      ];
+      return { vertices, faces };
+    },
+  },
+  standingRotated: {
+    name: "Standing (Rotated)",
+    // Upright device rotated 90° around Z axis
+    generate: function () {
+      const width = 0.15;
+      const depth = 0.06;
       const height = 0.3;
       const vertices = [
         { x: -width, y: -depth, z: 0 },
