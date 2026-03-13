@@ -1,0 +1,412 @@
+:root {
+    --background: #f0f0f0;
+    --foreground: #e0e0e0;
+    --text: #333;
+    --header: #666;
+    --panel-bg: #ffffff;
+    --button-bg: #4285f4;
+    --button-hover: #3b78e7;
+    --button-text: #ffffff;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    font-family: "Quicksand", sans-serif;
+    background-color: var(--background);
+    color: var(--text);
+}
+
+#canvas {
+    flex-grow: 1;
+}
+
+/* Left toolbar - tool selection */
+.tool-menu {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 3;
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tool-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    border: none;
+    background-color: var(--panel-bg);
+    cursor: pointer;
+    font-size: 24px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+    transition: background-color 0.1s;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    padding: 0;
+}
+
+.tool-button:hover {
+    background-color: var(--foreground);
+}
+
+.tool-button:active {
+    transform: translateY(3px);
+    box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+}
+
+.tool-button.active {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+}
+
+.kbd {
+    display: inline-block;
+    padding: 3px 5px;
+    font:
+        11px/1 "SFMono-Regular",
+        Consolas,
+        "Liberation Mono",
+        Menlo,
+        Courier,
+        monospace;
+    color: #444d56;
+    vertical-align: middle;
+    background-color: #fafbfc;
+    border: solid 1px #d1d5da;
+    border-bottom-color: #c6cbd1;
+    border-radius: 3px;
+    box-shadow: inset 0 -1px 0 #c6cbd1;
+}
+
+.controls-list {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 14px;
+}
+
+.controls-list li {
+    margin-bottom: 8px;
+}
+
+/* Right panel - tool options */
+.toolbar {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px;
+    background-color: var(--panel-bg);
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    display: none;
+    flex-direction: column;
+    gap: 15px;
+    z-index: 3;
+    width: 280px;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.toolbar.visible {
+    display: flex;
+}
+
+.toolbar-description {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.type-options {
+    display: flex;
+    flex-direction: column;
+}
+
+.type-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.type-option:hover {
+    background-color: var(--foreground);
+}
+
+.type-option input[type="radio"],
+.type-option input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+h3 {
+    margin: 0px 0px 8px 0px;
+    font-size: 14px;
+    color: var(--header);
+    font-weight: 700;
+}
+
+select,
+input,
+textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--foreground);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    background-color: var(--background);
+    color: var(--text);
+    box-sizing: border-box;
+}
+
+textarea {
+    height: 200px;
+    font-size: 10px;
+    resize: vertical;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+}
+
+.input-group > * {
+    flex: 1;
+}
+
+.rotation-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.toolbar-button {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: none;
+    background-color: var(--panel-bg);
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    transition: background-color 0.1s;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toolbar-button:hover {
+    background-color: var(--foreground);
+}
+
+.toolbar-button:active {
+    transform: translateY(2px);
+}
+
+.toolbar-button.blue {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+}
+
+.toolbar-button.blue:hover {
+    background-color: var(--button-hover);
+}
+
+.toolbar-button.green {
+    background-color: #16a34a;
+    color: var(--button-text);
+}
+
+.toolbar-button.green:hover {
+    background-color: #15803d;
+}
+
+@keyframes pulse-blue {
+    0%,
+    100% {
+        background-color: var(--button-bg);
+    }
+    50% {
+        background-color: #6aa3f8;
+    }
+}
+
+.toolbar-button.pending {
+    animation: pulse-blue 1.5s ease-in-out infinite;
+}
+
+.toolbar-button.pending:hover {
+    animation: none;
+    background-color: var(--button-hover);
+}
+
+.rotation-button {
+    padding: 12px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.toast {
+    background-color: var(--panel-bg);
+    color: var(--text);
+    border-radius: 6px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.15);
+    font-size: 14px;
+    opacity: 1;
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+}
+
+.toast-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    color: white;
+    font-size: 18px;
+}
+
+.toast-icon.info {
+    background-color: #0ea5e9;
+}
+
+.toast-icon.success {
+    background-color: #16a34a;
+}
+
+.toast-icon.error {
+    background-color: #ef4444;
+}
+
+.toast-message {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+}
+
+.toast.fade-out {
+    animation: toast-out 0.8s ease forwards;
+}
+
+@keyframes toast-out {
+    to {
+        opacity: 0;
+    }
+}
+
+.arrow {
+    font-size: 16px;
+}
+
+/* Context menu */
+.context-menu {
+    position: fixed;
+    background-color: var(--panel-bg);
+    border-radius: 6px;
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 180px;
+    padding: 4px;
+    display: none;
+}
+
+.context-menu.visible {
+    display: block;
+}
+
+.context-menu-item {
+    padding: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.1s;
+    border-radius: 6px;
+}
+
+.context-menu-item:hover {
+    background-color: var(--foreground);
+}
+
+.context-menu-item i {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.context-menu-item.danger {
+    color: #ef4444;
+}
+
+.context-menu-item.danger:hover {
+    background-color: #fef2f2;
+}
+
+.context-menu-divider {
+    height: 1px;
+    background-color: var(--foreground);
+    margin: 4px 0;
+}
+
+/* Color picker input (hidden, triggered programmatically) */
+.hidden-color-picker {
+    position: absolute;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+}
+
+/* Floating input panel - top center */
+.input-panel {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px;
+    background-color: var(--panel-bg);
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    z-index: 3;
+}
+
+.input-panel .toolbar-button {
+    padding: 8px 16px;
+    white-space: nowrap;
+}

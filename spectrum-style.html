@@ -1,0 +1,566 @@
+<html
+    style="
+        --background: #242835;
+        --foreground: #323541;
+        --text: #94a3b8;
+        --header: #64748b;
+        color-scheme: dark;
+    "
+>
+    <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+            rel="preconnect"
+            href="https://fonts.gstatic.com"
+            crossorigin=""
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&amp;display=swap"
+            rel="stylesheet"
+        />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet"
+        />
+        <meta charset="UTF-8" />
+
+        <title>Interactive Spectrum Chart</title>
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+                touch-action: none;
+                font-family: "Quicksand", sans-serif;
+                background-color: var(--background);
+                color: var(--text);
+            }
+
+            #canvas {
+                touch-action: none;
+                width: 100vw;
+                height: 100vh;
+                display: block;
+            }
+
+            .menu {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                z-index: 3;
+                padding-left: env(safe-area-inset-left);
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+
+            .dropdown-button {
+                position: relative;
+            }
+
+            .button {
+                width: 40px;
+                height: 40px;
+                border-radius: 6px;
+                border-width: thin;
+                border-style: solid;
+                border-color: var(--foreground);
+                background-color: var(--background);
+                cursor: pointer;
+                font-size: 24px;
+                color: var(--text);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+                transition: background-color 0.1s;
+                -webkit-appearance: none;
+                touch-action: manipulation;
+                padding: 0;
+            }
+
+            .button:hover {
+                background-color: var(--foreground);
+            }
+
+            .button:active {
+                transform: translateY(3px);
+                box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+            }
+
+            .dropdown-menu {
+                display: none;
+                position: absolute;
+                left: calc(100% + 10px);
+                top: 0;
+                border-width: thin;
+                border-style: solid;
+                border-color: var(--foreground);
+                background-color: var(--background);
+                color: var(--text);
+                width: 300px;
+                max-width: calc(100vw - 100px + env(safe-area-inset-right));
+                max-height: calc(100dvh - 50px - env(safe-area-inset-bottom));
+                overflow-y: auto;
+                box-shadow: 0px 4px 4px 4px rgba(0, 0, 0, 0.025);
+                border-radius: 6px;
+                padding: 6px;
+            }
+
+            .dropdown-menu label {
+                display: block;
+                padding: 6px;
+                cursor: pointer;
+            }
+
+            .dropdown-menu label:hover {
+                background-color: var(--foreground);
+                border-radius: 6px;
+            }
+
+            .dropdown-menu h4 {
+                margin: 5px 0;
+                color: var(--header);
+                font-weight: 700;
+                font-size: 12px;
+                padding: 0 5px;
+            }
+
+            .dropdown-menu input[type="button"] {
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+                background: none;
+                border: none;
+                border-radius: 6px;
+                width: 100%;
+                text-align: left;
+                cursor: pointer;
+                color: var(--text);
+                font-family: inherit;
+                font-size: inherit;
+            }
+
+            .wifi-options,
+            .subcarrier-options,
+            .resource-unit-options,
+            .bluetooth-options,
+            .lora-options,
+            .uwb-options {
+                display: none;
+                margin-left: 14px;
+            },
+        </style>
+    </head>
+    <body>
+        <canvas
+            id="canvas"
+            width="1600"
+            height="1600"
+            style="width: 800px; height: 800px; cursor: auto"
+        ></canvas>
+        <div class="menu">
+            <div class="dropdown-button">
+                <button class="button">
+                    <i class="bx bx-menu"></i>
+                </button>
+                <div class="dropdown-menu">
+                    <h4>Wi-Fi</h4>
+                    <label
+                        ><input
+                            type="checkbox"
+                            id="wifi-visibility"
+                            checked=""
+                        />
+                        Wi-Fi
+                    </label>
+                    <div class="wifi-options" style="display: block">
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="wifi-20mhz-visibility"
+                                checked=""
+                            />
+                            20 MHz channels
+                        </label>
+                        <label>
+                            <input type="checkbox" id="wifi-40mhz-visibility" />
+                            40 MHz channels
+                        </label>
+                        <label>
+                            <input type="checkbox" id="wifi-80mhz-visibility" />
+                            80 MHz channels
+                        </label>
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="wifi-160mhz-visibility"
+                            />
+                            160 MHz channels
+                        </label>
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="wifi-320mhz-visibility"
+                            />
+                            320 MHz channels
+                        </label>
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="wifi-overlapping-visibility"
+                            />
+                            2.4 GHz overlapping channels</label
+                        >
+                        <label>
+                            <input type="checkbox" id="unii-4-visibility" />
+                            UNII-4</label
+                        >
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="psc-visibility"
+                                checked=""
+                            />
+                            Preferred Scan Channels</label
+                        >
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="subcarrier-visibility"
+                                checked=""
+                            />
+                            Subcarriers</label
+                        >
+                        <div class="subcarrier-options" style="display: block">
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="subcarrier-select"
+                                    value="OFDM"
+                                />
+                                OFDM
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="subcarrier-select"
+                                    value="HT"
+                                    checked=""
+                                />
+                                HT
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="subcarrier-select"
+                                    value="VHT"
+                                />
+                                VHT
+                            </label>
+                            <div class="resource-unit-options">
+                                <label>
+                                    <input
+                                        type="radio"
+                                        name="resource-unit-select"
+                                        value="26-RU"
+                                    />
+                                    26 Resource Units
+                                </label>
+                                <label>
+                                    <input
+                                        type="radio"
+                                        name="resource-unit-select"
+                                        value="67-RU"
+                                        checked=""
+                                    />
+                                    67 Resource Units
+                                </label>
+                                <label>
+                                    <input
+                                        type="radio"
+                                        name="resource-unit-select"
+                                        value="128-RU"
+                                        checked=""
+                                    />
+                                    128 Resource Units
+                                </label>
+                            </div>
+                        </div>
+
+                        <h4>Sub 1 GHz</h4>
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="wifi-1mhz-visibility"
+                                checked=""
+                            />
+                            1 MHz channels
+                        </label>
+                        <label>
+                            <input type="checkbox" id="wifi-2mhz-visibility" />
+                            2 MHz channels
+                        </label>
+                        <label>
+                            <input type="checkbox" id="wifi-4mhz-visibility" />
+                            4 MHz channels
+                        </label>
+                        <label>
+                            <input type="checkbox" id="wifi-8mhz-visibility" />
+                            8 MHz channels
+                        </label>
+                        <label>
+                            <input type="checkbox" id="wifi-16mhz-visibility" />
+                            16 MHz channels
+                        </label>
+                        <label
+                            ><input
+                                type="checkbox"
+                                id="S1G-subcarrier-visibility"
+                                checked=""
+                            />
+                            Subcarriers</label
+                        >
+                    </div>
+
+                    <h4>Bluetooth</h4>
+                    <label
+                        ><input
+                            type="checkbox"
+                            id="bluetooth-visibility"
+                            checked=""
+                        />
+                        Bluetooth</label
+                    >
+                    <label class="bluetooth-options" style="display: block">
+                        <input
+                            type="radio"
+                            name="bluetooth-mode-select"
+                            value="Classic"
+                        />
+                        Classic
+                    </label>
+                    <label class="bluetooth-options" style="display: block">
+                        <input
+                            type="radio"
+                            name="bluetooth-mode-select"
+                            value="Low Energy"
+                            checked=""
+                        />
+                        Low Energy
+                    </label>
+                    <h4>Zigbee</h4>
+                    <label
+                        ><input type="checkbox" id="zigbee-visibility" />
+                        Zigbee</label
+                    >
+                    <h4>LoRa</h4>
+                    <label
+                        ><input type="checkbox" id="lora-visibility" />
+                        LoRa</label
+                    >
+                    <label class="lora-options" style="display: none"
+                        ><input type="checkbox" id="lora-125-visibility" /> 125
+                        KHz channels
+                    </label>
+                    <label class="lora-options" style="display: none"
+                        ><input type="checkbox" id="lora-500-visibility" /> 500
+                        KHz channels
+                    </label>
+                    <h4>DECT</h4>
+                    <label
+                        ><input
+                            type="checkbox"
+                            id="dect-visibility"
+                            checked=""
+                        />
+                        DECT</label
+                    >
+                    <h4>Ultra-wideband</h4>
+                    <label
+                        ><input type="checkbox" id="uwb-visibility" />
+                        UWB</label
+                    >
+                    <div class="uwb-options" style="display: none">
+                        <label>
+                            <input type="checkbox" id="uwb-500mhz-visibility" />
+                            500 MHz channels
+                        </label>
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="uwb-1000mhz-visibility"
+                            />
+                            1000+ MHz channels
+                        </label>
+                    </div>
+                    <h4>Band Labels</h4>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="fcc-band-visibility"
+                            checked=""
+                        />
+                        FCC
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="etsi-band-visibility"
+                            checked=""
+                        />
+                        ETSI
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="gsm-cellular-band-visibility"
+                        />
+                        GSM Cellular
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="LTE-cellular-band-visibility"
+                        />
+                        LTE Cellular
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="NR-5G-cellular-band-visibility"
+                        />
+                        5G NR Cellular
+                    </label>
+                    <label>
+                        <input type="checkbox" id="ITU-band-visibility" />
+                        ITU
+                    </label>
+                    <h4>General</h4>
+                    <label>
+                        Height:
+                        <input
+                            type="range"
+                            id="height-slider"
+                            min="20"
+                            max="400"
+                            value="100"
+                        />
+                    </label>
+                    <label>
+                        <input type="radio" name="theme-select" value="light" />
+                        Light Mode
+                    </label>
+                    <label>
+                        <input type="radio" name="theme-select" value="dark" />
+                        Dark Mode
+                    </label>
+                    <label>
+                        <input
+                            type="radio"
+                            name="theme-select"
+                            value="system"
+                            checked=""
+                        />
+                        System
+                    </label>
+                </div>
+            </div>
+            <div class="dropdown-button">
+                <button class="button" id="domain">
+                    <i class="bx bx-globe"></i>
+                </button>
+                <div class="dropdown-menu">
+                    <h4>Regulatory Domains</h4>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="ww-domain-visibility"
+                            checked=""
+                        />
+                        🌍 Show Worldwide (harmonized)
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="us-domain-visibility"
+                            checked=""
+                        />
+                        🇺🇸 Show US
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="eu-domain-visibility"
+                            checked=""
+                        />
+                        🇪🇺 Show EU
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="au-domain-visibility"
+                            checked=""
+                        />
+                        🇦🇺 Show AU
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="jp-domain-visibility"
+                            checked=""
+                        />
+                        🇯🇵 Show JP
+                    </label>
+                </div>
+            </div>
+            <div class="dropdown-button">
+                <button class="button" id="shortcuts">
+                    <i class="bx bx-star"></i>
+                </button>
+                <div class="dropdown-menu">
+                    <h4>Shortcuts</h4>
+                    <label>
+                        <input
+                            type="button"
+                            value="900 MHz"
+                            id="900-MHz-shortcut"
+                    /></label>
+                    <label
+                        ><input
+                            type="button"
+                            value="2.4 GHz"
+                            id="2400-MHz-shortcut"
+                    /></label>
+                    <label
+                        ><input
+                            type="button"
+                            value="5 GHz"
+                            id="5000-MHz-shortcut"
+                    /></label>
+                    <label
+                        ><input
+                            type="button"
+                            value="6 GHz"
+                            id="6000-MHz-shortcut"
+                    /></label>
+                    <label
+                        ><input
+                            type="button"
+                            value="Entire spectrum"
+                            id="full-spectrum-shortcut"
+                    /></label>
+                </div>
+            </div>
+            <button class="button" id="export">
+                <i class="bx bx-download"></i>
+            </button>
+            <button class="button" id="zoom-in">
+                <i class="bx bx-zoom-in"></i>
+            </button>
+            <button class="button" id="zoom-out">
+                <i class="bx bx-zoom-out"></i>
+            </button>
+        </div>
+    </body>
+</html>

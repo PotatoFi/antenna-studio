@@ -5,7 +5,7 @@ const antennaData = {
   azimuth: [], // XY plane
   elevationXZ: [], // XZ plane
   elevationYZ: [], // YZ plane
-  minGain: -30,
+  minGain: -50,
   maxGain: 10,
 };
 
@@ -681,6 +681,32 @@ function initializeEventListeners() {
     worldOrientation.groundPlaneZ = parseFloat(e.target.value);
     document.getElementById("ground-height-value").textContent = e.target.value;
     redraw3D();
+  });
+
+  // Min gain slider
+  document.getElementById("min-gain").addEventListener("input", (e) => {
+    const newMin = parseInt(e.target.value);
+    // Ensure min doesn't exceed max
+    if (newMin >= antennaData.maxGain) {
+      e.target.value = antennaData.maxGain - 5;
+      return;
+    }
+    antennaData.minGain = newMin;
+    document.getElementById("min-gain-value").textContent = newMin + " dB";
+    redrawAll();
+  });
+
+  // Max gain slider
+  document.getElementById("max-gain").addEventListener("input", (e) => {
+    const newMax = parseInt(e.target.value);
+    // Ensure max doesn't go below min
+    if (newMax <= antennaData.minGain) {
+      e.target.value = antennaData.minGain + 5;
+      return;
+    }
+    antennaData.maxGain = newMax;
+    document.getElementById("max-gain-value").textContent = newMax + " dB";
+    redrawAll();
   });
 
   // Plane visibility checkboxes
