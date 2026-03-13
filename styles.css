@@ -185,6 +185,19 @@ body {
     margin-right: 8px;
 }
 
+.antenna-name-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 1px solid var(--foreground);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    margin-bottom: 4px;
+}
+
 .dropdown-menu .slider-row {
     display: flex;
     align-items: center;
@@ -365,6 +378,31 @@ body {
 
 .color-indicator.elevation-yz {
     background: #e04040;
+}
+
+/* Drop overlay for file import */
+.drop-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+}
+
+.drop-overlay.visible {
+    display: flex;
+}
+
+.drop-overlay-message {
+    background: var(--panel-bg);
+    border: 2px dashed var(--button-bg);
+    border-radius: 12px;
+    padding: 40px 60px;
+    font-size: 18px;
+    color: var(--text);
+    pointer-events: none;
 }
 
 /* Responsive */

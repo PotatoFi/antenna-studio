@@ -218,6 +218,13 @@
                     <i class="bx bx-home"></i>
                 </button>
                 <div class="dropdown-menu" id="mount-menu">
+                    <h4>Name</h4>
+                    <input
+                        type="text"
+                        id="antenna-name"
+                        class="antenna-name-input"
+                        placeholder="Antenna name"
+                    />
                     <h4>Mounting Type</h4>
                     <label>
                         <input
@@ -239,7 +246,7 @@
                 </div>
             </div>
 
-            <!-- Model Type -->
+            <!-- Formfactor -->
             <div class="dropdown-button">
                 <button
                     class="button"
@@ -249,7 +256,7 @@
                     <i class="bx bx-cube"></i>
                 </button>
                 <div class="dropdown-menu" id="model-menu">
-                    <h4>Model Type</h4>
+                    <h4>Formfactor</h4>
                     <label>
                         <input type="radio" name="ap-model" value="none" />
                         None
@@ -387,6 +394,21 @@
             </div>
 
             <!-- Export -->
+            <!-- Import -->
+            <button
+                class="button"
+                id="import-btn"
+                title="Import antenna pattern from file"
+            >
+                <i class="bx bx-upload"></i>
+            </button>
+            <input
+                type="file"
+                id="import-file-input"
+                accept=".csv,.txt"
+                style="display:none"
+            />
+
             <button
                 class="button"
                 id="export-btn"
@@ -404,6 +426,10 @@
             <button class="button" id="zoom-out-btn" title="Zoom Out">
                 <i class="bx bx-zoom-out"></i>
             </button>
+        </div>
+
+        <div id="drop-overlay" class="drop-overlay">
+            <div class="drop-overlay-message">Drop antenna pattern file to import</div>
         </div>
 
         <script src="app.js"></script>
