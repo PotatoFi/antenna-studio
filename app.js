@@ -687,6 +687,15 @@ function initializeEventListeners() {
     });
   });
 
+  // Flip buttons
+  document.querySelectorAll(".flip-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const plane = e.target.dataset.plane;
+      const axis = e.target.dataset.axis;
+      flipPattern(plane, axis);
+    });
+  });
+
   // Swap buttons
   document.querySelectorAll(".swap-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -943,6 +952,31 @@ function rotatePattern(plane, direction, degrees = 90) {
   antennaData[dataKey] = rotatedData;
 
   // Redraw
+  redrawAll();
+}
+
+// Flip a pattern around an axis (mirror it)
+// axis: "first" = flip around the first axis of the plane (e.g. X for XY)
+//       "second" = flip around the second axis of the plane (e.g. Y for XY)
+// Flipping around the first axis: angle -> (360 - angle) % 360
+// Flipping around the second axis: angle -> (180 - angle + 360) % 360
+function flipPattern(plane, axis) {
+  const dataKey = planeToDataKey(plane);
+  const data = antennaData[dataKey];
+  if (!data || data.length === 0) return;
+
+  const flippedData = data.map((point) => {
+    let newAngle;
+    if (axis === "first") {
+      newAngle = (360 - point.angle) % 360;
+    } else {
+      newAngle = ((180 - point.angle) % 360 + 360) % 360;
+    }
+    return { angle: newAngle, gain: point.gain };
+  });
+
+  flippedData.sort((a, b) => a.angle - b.angle);
+  antennaData[dataKey] = flippedData;
   redrawAll();
 }
 
