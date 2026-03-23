@@ -375,6 +375,17 @@ body {
     gap: 4px;
 }
 
+.delete-btn {
+    margin-left: auto;
+    color: #999;
+    font-size: 13px;
+}
+
+.delete-btn:hover {
+    color: #ef4444;
+    background-color: #fef2f2;
+}
+
 .toolbar-button {
     background-color: var(--panel-bg);
     border: none;

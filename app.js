@@ -850,6 +850,14 @@ function initializeEventListeners() {
     });
   });
 
+  // Delete buttons
+  document.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const plane = e.target.dataset.plane;
+      deletePattern(plane);
+    });
+  });
+
   // 3D controls
   document
     .getElementById("show-ground-plane")
@@ -1149,6 +1157,19 @@ function swapPatterns(plane1, plane2) {
   }
 
   // Redraw
+  redrawAll();
+}
+
+// Delete a pattern from a plane
+function deletePattern(plane) {
+  const dataKey = planeToDataKey(plane);
+  getAntennaData()[dataKey] = [];
+  getPlaneVisibility()[dataKey] = false;
+
+  const checkboxId = `show-${plane}`;
+  const checkbox = document.getElementById(checkboxId);
+  if (checkbox) checkbox.checked = false;
+
   redrawAll();
 }
 
