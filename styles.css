@@ -45,6 +45,80 @@ body {
     cursor: grabbing;
 }
 
+/* Radio tab bar — floating pill, matching clipboard input-panel style */
+.radio-tab-bar {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background-color: var(--panel-bg);
+    border-radius: 6px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    z-index: 3;
+    max-width: calc(100vw - 140px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.radio-tab {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--header);
+    cursor: pointer;
+    transition: background-color 0.1s, color 0.1s;
+    white-space: nowrap;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+}
+
+.radio-tab:hover {
+    background-color: var(--foreground);
+    color: var(--text);
+}
+
+.radio-tab:active {
+    transform: translateY(1px);
+}
+
+.radio-tab.active {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+}
+
+.radio-tab-add {
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--header);
+    padding: 6px 10px;
+    line-height: 1;
+}
+
+.radio-tab-add:hover {
+    color: var(--button-bg);
+    background-color: var(--foreground);
+}
+
+.radio-tab-input {
+    border: 1px solid var(--button-bg);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 2px 6px;
+    width: 80px;
+    outline: none;
+    background: var(--background);
+    color: var(--text);
+}
+
 /* Right Pane - pushes canvas */
 .right-pane {
     display: none;
@@ -299,6 +373,17 @@ body {
 .swap-controls {
     display: flex;
     gap: 4px;
+}
+
+.delete-btn {
+    margin-left: auto;
+    color: #999;
+    font-size: 13px;
+}
+
+.delete-btn:hover {
+    color: #ef4444;
+    background-color: #fef2f2;
 }
 
 .toolbar-button {
