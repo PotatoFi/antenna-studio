@@ -713,14 +713,16 @@ function initializeEventListeners() {
     document.getElementById("import-file-input").click();
   });
 
-  document.getElementById("import-file-input").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => importAntennaFile(ev.target.result);
-    reader.readAsText(file);
-    e.target.value = ""; // reset so same file can be re-imported
-  });
+  document
+    .getElementById("import-file-input")
+    .addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => importAntennaFile(ev.target.result);
+      reader.readAsText(file);
+      e.target.value = ""; // reset so same file can be re-imported
+    });
 
   // Drag-and-drop import onto the whole window
   const dropOverlay = document.getElementById("drop-overlay");
@@ -933,6 +935,22 @@ function initializeEventListeners() {
   canvas3d.addEventListener("mousemove", drag3D);
   canvas3d.addEventListener("mouseup", end3DDrag);
   canvas3d.addEventListener("mouseleave", end3DDrag);
+  canvas3d.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      // Normalize across deltaMode: pixel (0), line (1), page (2)
+      const raw =
+        e.deltaMode === 1
+          ? e.deltaY * 20
+          : e.deltaMode === 2
+            ? e.deltaY * 300
+            : e.deltaY;
+      const sensitivity = e.ctrlKey ? 0.015 : 0.005;
+      setZoom(view3D.zoom * (1 - raw * sensitivity));
+    },
+    { passive: false },
+  );
 
   // Resize handler for 3D canvas
   window.addEventListener("resize", resizeCanvas3D);
@@ -1125,7 +1143,7 @@ function flipPattern(plane, axis) {
     if (axis === "first") {
       newAngle = (360 - point.angle) % 360;
     } else {
-      newAngle = ((180 - point.angle) % 360 + 360) % 360;
+      newAngle = (((180 - point.angle) % 360) + 360) % 360;
     }
     return { angle: newAngle, gain: point.gain };
   });
@@ -1244,21 +1262,9 @@ function redrawPolarCharts() {
   // Azimuth (XY) rotates around Z axis - use Z color (blue)
   drawPolarChart("azimuth-chart", ad.azimuth, axisColors.z, "X", "Y");
   // Elevation XZ rotates around Y axis - use Y color (green)
-  drawPolarChart(
-    "elevation-xz-chart",
-    ad.elevationXZ,
-    axisColors.y,
-    "X",
-    "Z",
-  );
+  drawPolarChart("elevation-xz-chart", ad.elevationXZ, axisColors.y, "X", "Z");
   // Elevation YZ rotates around X axis - use X color (red)
-  drawPolarChart(
-    "elevation-yz-chart",
-    ad.elevationYZ,
-    axisColors.x,
-    "Y",
-    "Z",
-  );
+  drawPolarChart("elevation-yz-chart", ad.elevationYZ, axisColors.x, "Y", "Z");
 }
 
 // 2D Polar Chart Drawing
@@ -1892,13 +1898,22 @@ function importAntennaFile(text) {
         const radioName = line.slice("## Radio:".length).trim();
         currentRadio = createRadio(radioName);
         importedRadios.push(currentRadio);
-      } else if (line.startsWith("### Azimuth") || line.startsWith("## Azimuth")) {
+      } else if (
+        line.startsWith("### Azimuth") ||
+        line.startsWith("## Azimuth")
+      ) {
         flushPlane();
         currentPlane = "azimuth";
-      } else if (line.startsWith("### Elevation XZ") || line.startsWith("## Elevation XZ")) {
+      } else if (
+        line.startsWith("### Elevation XZ") ||
+        line.startsWith("## Elevation XZ")
+      ) {
         flushPlane();
         currentPlane = "elevationXZ";
-      } else if (line.startsWith("### Elevation YZ") || line.startsWith("## Elevation YZ")) {
+      } else if (
+        line.startsWith("### Elevation YZ") ||
+        line.startsWith("## Elevation YZ")
+      ) {
         flushPlane();
         currentPlane = "elevationYZ";
       } else if (line.startsWith("#")) {
@@ -1972,7 +1987,12 @@ function importAntennaFile(text) {
         if (data.length > 0) {
           getAntennaData()[key] = data;
           getPlaneVisibility()[key] = true;
-          const planeId = key === "azimuth" ? "azimuth" : key === "elevationXZ" ? "elevation-xz" : "elevation-yz";
+          const planeId =
+            key === "azimuth"
+              ? "azimuth"
+              : key === "elevationXZ"
+                ? "elevation-xz"
+                : "elevation-yz";
           const checkbox = document.getElementById(`show-${planeId}`);
           if (checkbox) checkbox.checked = true;
         }
@@ -1988,18 +2008,22 @@ function importAntennaFile(text) {
   // Apply mounting type
   if (importedMountType) {
     setMountType(importedMountType);
-    const r = document.querySelector(`input[name="mount-type"][value="${importedMountType}"]`);
+    const r = document.querySelector(
+      `input[name="mount-type"][value="${importedMountType}"]`,
+    );
     if (r) r.checked = true;
   }
 
   // Apply formfactor by reverse-looking up the name
   if (importedFormfactor) {
     const matchedKey = Object.entries(apModelDefinitions).find(
-      ([, def]) => def.name === importedFormfactor
+      ([, def]) => def.name === importedFormfactor,
     )?.[0];
     if (matchedKey) {
       apModel.type = matchedKey;
-      const r = document.querySelector(`input[name="ap-model"][value="${matchedKey}"]`);
+      const r = document.querySelector(
+        `input[name="ap-model"][value="${matchedKey}"]`,
+      );
       if (r) r.checked = true;
     }
   }
@@ -2057,7 +2081,9 @@ function exportData() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const safeName = antennaName ? antennaName.replace(/[^a-z0-9_\-]/gi, "_") : "antenna-pattern";
+  const safeName = antennaName
+    ? antennaName.replace(/[^a-z0-9_\-]/gi, "_")
+    : "antenna-pattern";
   a.download = `${safeName}.csv`;
   document.body.appendChild(a);
   a.click();
