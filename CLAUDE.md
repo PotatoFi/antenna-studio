@@ -2,93 +2,112 @@
 
 ## Project Overview
 
-Antenna Creator is a utility for inputting access point specifications and antenna pattern data, visualizing the antenna patterns, and outputting the data for integration by engineering in Hamina Network Planner. For inputting data:
+Antenna Studio is a utility for inputting access point specifications and antenna pattern data, visualizing the antenna patterns, and outputting the data.
 
-1. Form where the user can input dBi per angle for the azimuth (XY) and elevation planes (which can be either XZ or ZY, both)
-2. Draw each antenna plane as a polar chart.
-3. Render all three antenna planes in 3D.
-4. Export everything to a text file with CSV values per radio
+## Technical Details
 
-## Input data for Azimuth and Elevation Planes
+Pure vanilla HTML, CSS, and JavaScript — no frameworks or build tools. Three files:
+* `index.html` — DOM structure (toolbar, edit pane, canvas, radio tab bar)
+* `styles.css` — all styling
+* `app.js` — all logic (~2000 lines)
 
-* Paste in CSV gain per angle, with angle/gain pairs
-* Paste multiple patterns in
-* Select which plane the pattern belongs on
+Reference style files from sibling projects: `clipboard-style.css`, `spectrum-style.html`. The floating UI style (fixed position, `border-radius: 6px`, `box-shadow`, `var(--panel-bg)`) comes from the clipboard project's `.input-panel` pattern.
 
-## Draw each pattern as a polar chart
+## Architecture
 
-Show X and Y directions as arrows
-Traditional polar chart, automatically adapting for input antenna pattern interval
-Show gain markers every 5°
-Ability to configure in/max gain markers
+### Data Model
 
-## Render Anttenna patterns
+**Multi-radio system**: The app supports multiple radio bands (default: 2.4 GHz, 5 GHz, 6 GHz). Each radio is an object with its own:
+* `antennaData` — three pattern arrays (`azimuth`, `elevationXZ`, `elevationYZ`), each containing `{angle, gain}` points, plus `minGain`/`maxGain`
+* `planeVisibility` — per-plane show/hide state
 
-Render all three patterns, intersecting with each other in the center
-Ability to drag the patterns around with mouse to change perspective
-Draw ground plane
+Access the active radio's data via `getAntennaData()` and `getPlaneVisibility()` — never reference a radio's properties directly from UI code.
 
-## Export Everything
+**Shared state** (not per-radio):
+* `antennaOrientation` — mount type, rotation (X/Y/Z Euler angles)
+* `apModel` — formfactor type (disc, squircle, hospitality, can, patch, dipole, tube, flat, standing, box)
+* `worldOrientation` — ground plane Z position
+* `view3D` — camera rotation, zoom, axis visibility
+* AP/Antenna name (text input)
 
-Will specify later
+### Coordinate Systems
 
-## Technical details
+Two coordinate systems with separate axis indicators:
+1. **antennaOrientation** (local) — Z is "out" from mounting surface, X is beam direction
+2. **worldOrientation** (fixed) — Z is always up
 
-Use CSS, HTML, and JavaScript.
+Mount type presets rotate the antenna coordinate system:
+* Ceiling: rotationX=180 (Z points down)
+* Wall: rotationX=90 (Z points horizontally)
+* Table: rotationX=0 (Z points up)
 
-## Physical AP/antenna types
+Axis colors are consistent everywhere:
+* X: `#e04040` (red) — YZ pattern rotates around X
+* Y: `#40b040` (green) — XZ pattern rotates around Y
+* Z: `#4080e0` (blue) — XY/Azimuth pattern rotates around Z
 
-* Disc - Typical round access point, usually ceiling-mounted like a smoke alarm
-* Squircle - Typical square access point, usually ceiling-mounted like a smoke alarm
-* Hospitality - Typical wall-mounted access point with Ethernet ports on the bottom
-* Can - Typical outdoor AP, usually L-bracket mounted
-* Patch Panel - Typical patch-panel, usually wall-mounted
-* Di-pole - A Typical di-pole antenna, sometimes with an articulating section
-* Tube - Special antenna in a tublular radome
-* Flat - Sits flat on a table, like a WRT54G
-* Standing - Sits upright on a table, like a PlayStation 5
+### Rendering
 
-## Antenna Orientation
+3D uses a 2D canvas with manual orthographic projection and painter's algorithm for depth sorting. The pipeline: antenna-local coords -> `antennaToWorld()` -> `projectWorldToScreen()` -> 2D canvas drawing.
 
-There are two sets of orientation:
-
-1. The antennaOrientation with it's own X, Y, and Z axis
-2. The worldOrientation with it's own X, Y, and Z axis
-
-For antennaOrientation, by default Z should point up. When viewing isometrically, and with the X/Y/Z indicators in the back, farthest from the camera, X should point down/leftward (towards the camera), and Y down/rightward (towards the camera). The X axis is where the AP or antenna should face, if it has a directional pattern. When wall-mounted, this would be at the horizon. When ceiling-mounted, this would be at the floor. When table-mounted, this would be at the ceiling.
-
-worldOrientation never changes, with Z being "up" by default, although the user can change tilt and direction of the camera.
-
-There should be X/Y/Z indicators for both the worldOrientation (which contains the ground plane/floor plane, which should be positioned below the antenna), and X/Y/Z indicators for antennaOrientation.
+2D polar charts in the edit pane use separate canvases, scaled for devicePixelRatio.
 
 ### Comments from Timo
 
-There are comments about the system from Timo.
-
 "In the case of a directional antenna, which way would you say the antenna should point the beam?" You should point the beam to common axis. Usually this is X if azimuth is X/Y and elevation is Z/X.
- 
-Azimuth is usually XY, ZX is usually elevation phi:0, ZY is elevation phi:90. There can be exceptions. The point is that the interpolation spins around the z-axis so it matters which way these are
- 
-I said that you point the beam to common axis but then you need to point the whole antenna towards z-axis. This applies especially to directional antennas where Z goes horizontally out from the wall. In ceiling mounted z is down and in floor mount its up
 
-## Toolbars
+Azimuth is usually XY, ZX is usually elevation phi:0, ZY is elevation phi:90. There can be exceptions. The point is that the interpolation spins around the z-axis so it matters which way these are.
 
-I have two other web-apps. I'd like to implement the same styling with the toolbar down the left side, with tools that can be hidden and shown that create popovers/panes. I've included both of the other web app CSS files for you to draw from: spectrum-chart.css and clipboard-syle.css.
+The whole antenna should be directed towards z-axis. This applies especially to directional antennas where Z goes horizontally out from the wall. In ceiling mounted z is down and in floor mount, its up.
 
-Toolbar items:
+## UI Layout
 
-Edit - Opens the "Edit Antenna" pane, which is on the right. It has the three patterns, stacked. Underneath each pattern there is a "Paste CSV" button and the rotate buttons.
+### Radio Tab Bar
+Floating pill centered at top of viewport (`position: fixed`, centered with `left: 50%; transform: translateX(-50%)`). Tabs switch between radios. Double-click to rename, right-click to remove, "+" to add. Style matches the clipboard project's `.input-panel`.
 
-View - Opens the "View" pane, which is on the right. It has:
-* Mounting Type
-* Model Type
-* Coordinate Axis
-* Hide and show each plane
+### Left Toolbar
+Fixed vertical button strip (top-left). Buttons:
+* **Edit** — toggles the right pane with pattern editors (polar charts, paste CSV, rotate, swap, mirror, delete per plane)
+* **Mount** — dropdown: antenna name input + mounting type (ceiling/wall/table)
+* **Model** — dropdown: AP formfactor selection (11 types)
+* **View** — dropdown: axis toggles, ground plane, plane visibility, gain range sliders
+* **Import** — file picker (also supports drag-and-drop)
+* **Export** — downloads CSV
+* **Zoom In/Out**
 
-Export - Exports a .CSV, including the mounting type and model type
+### Right Pane
+Slides in from right, pushing the canvas. Contains the Edit Antenna view with three pattern sections (azimuth, elevation XZ, elevation YZ), each with polar chart + controls (paste, rotate, swap, mirror, delete).
 
-Import - Imports the same .CSV format
+## Export/Import Format
 
-Zoom In
+CSV-like text file with markdown headers. Multi-radio format:
+```
+## Antenna Properties
+Name,<name>
+Mounting Type,<ceiling|wall|table>
+Formfactor,<name>
 
-Zoom Out
+## Radio: 2.4 GHz
+Min Gain,-50
+Max Gain,10
+
+### Azimuth (XY Plane)
+Angle,Gain(dBi)
+0,5.00
+...
+```
+
+Empty planes are omitted from export. Import auto-detects multi-radio format (looks for `## Radio:` headers) and falls back to legacy single-radio format.
+
+## Physical AP/Antenna Types
+
+* Disc — round ceiling AP (smoke alarm shape)
+* Squircle — rounded-square ceiling AP
+* Hospitality — rectangular wall-mount with ports on bottom
+* Can — cylindrical outdoor AP
+* Patch Panel — flat wall-mount panel
+* Dipole — thin vertical antenna
+* Tube — tubular radome antenna
+* Flat — table-top router (WRT54G style)
+* Standing — upright device (PlayStation 5 style)
+* Box — generic rectangular AP
