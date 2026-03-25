@@ -704,6 +704,11 @@ function initializeEventListeners() {
     toggleDropdown("model-menu", "model-btn");
   });
 
+  document.getElementById("orientation-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleDropdown("orientation-menu", "orientation-btn");
+  });
+
   // Close dropdowns when clicking outside
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".dropdown-button")) {
@@ -816,7 +821,7 @@ function initializeEventListeners() {
   // Paste CSV buttons - read directly from clipboard
   document.querySelectorAll(".paste-btn").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
-      const plane = e.target.dataset.plane;
+      const plane = e.currentTarget.dataset.plane;
       try {
         const text = await navigator.clipboard.readText();
         if (text.trim()) {
@@ -831,8 +836,8 @@ function initializeEventListeners() {
   // Rotate buttons
   document.querySelectorAll(".rotate-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      const plane = e.target.dataset.plane;
-      const direction = e.target.dataset.direction;
+      const plane = e.currentTarget.dataset.plane;
+      const direction = e.currentTarget.dataset.direction;
       rotatePattern(plane, direction);
     });
   });
@@ -840,8 +845,8 @@ function initializeEventListeners() {
   // Flip buttons
   document.querySelectorAll(".flip-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      const plane = e.target.dataset.plane;
-      const axis = e.target.dataset.axis;
+      const plane = e.currentTarget.dataset.plane;
+      const axis = e.currentTarget.dataset.axis;
       flipPattern(plane, axis);
     });
   });
@@ -849,8 +854,8 @@ function initializeEventListeners() {
   // Swap buttons
   document.querySelectorAll(".swap-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      const plane = e.target.dataset.plane;
-      const target = e.target.dataset.target;
+      const plane = e.currentTarget.dataset.plane;
+      const target = e.currentTarget.dataset.target;
       swapPatterns(plane, target);
     });
   });
@@ -858,7 +863,7 @@ function initializeEventListeners() {
   // Delete buttons
   document.querySelectorAll(".delete-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      const plane = e.target.dataset.plane;
+      const plane = e.currentTarget.dataset.plane;
       deletePattern(plane);
     });
   });
