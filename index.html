@@ -38,75 +38,14 @@
                             <canvas id="azimuth-chart"></canvas>
                         </div>
                         <div class="pattern-controls">
-                            <button
-                                class="toolbar-button paste-btn"
-                                data-plane="azimuth"
-                            >
-                                Paste CSV
-                            </button>
-                            <div class="rotate-controls">
-                                <button
-                                    class="toolbar-button rotate-btn"
-                                    data-plane="azimuth"
-                                    data-direction="ccw"
-                                    title="Rotate counter-clockwise by 90°"
-                                >
-                                    &#8634;
-                                </button>
-                                <button
-                                    class="toolbar-button rotate-btn"
-                                    data-plane="azimuth"
-                                    data-direction="cw"
-                                    title="Rotate clockwise by 90°"
-                                >
-                                    &#8635;
-                                </button>
-                            </div>
-                            <div class="swap-controls">
-                                <button
-                                    class="toolbar-button swap-btn"
-                                    data-plane="azimuth"
-                                    data-target="elevation-xz"
-                                    title="Swap this pattern to the XZ plane"
-                                >
-                                    Swap to XZ
-                                </button>
-                                <button
-                                    class="toolbar-button swap-btn"
-                                    data-plane="azimuth"
-                                    data-target="elevation-yz"
-                                    title="Swap this pattern to the YZ plane"
-                                >
-                                    Swap to YZ
-                                </button>
-                            </div>
-                        </div>
-                        <div class="pattern-controls">
-                            <div class="flip-controls">
-                                <button
-                                    class="toolbar-button flip-btn"
-                                    data-plane="azimuth"
-                                    data-axis="first"
-                                    title="Mirror pattern around X axis"
-                                >
-                                    Mirror X
-                                </button>
-                                <button
-                                    class="toolbar-button flip-btn"
-                                    data-plane="azimuth"
-                                    data-axis="second"
-                                    title="Mirror pattern around Y axis"
-                                >
-                                    Mirror Y
-                                </button>
-                            </div>
-                            <button
-                                class="toolbar-button delete-btn"
-                                data-plane="azimuth"
-                                title="Delete this pattern"
-                            >
-                                Delete
-                            </button>
+                            <button class="toolbar-button paste-btn" data-plane="azimuth" title="Paste CSV"><i class="bx bx-paste"></i></button>
+                            <button class="toolbar-button rotate-btn" data-plane="azimuth" data-direction="ccw" title="Rotate counter-clockwise by 90°"><i class="bx bx-shape-rotate-ccw" /></i></button>
+                            <button class="toolbar-button rotate-btn" data-plane="azimuth" data-direction="cw" title="Rotate clockwise by 90°"><i class="bx bx-shape-rotate-cw" /></i></button>
+                            <button class="toolbar-button swap-btn" data-plane="azimuth" data-target="elevation-xz" title="Swap to XZ" style="color: #40b040"><i class="bx bx-arrow-left-right"></i></button>
+                            <button class="toolbar-button swap-btn" data-plane="azimuth" data-target="elevation-yz" title="Swap to YZ" style="color: #e04040"><i class="bx bx-arrow-left-right"></i></button>
+                            <button class="toolbar-button flip-btn" data-plane="azimuth" data-axis="first" title="Mirror around X axis"><i class="bx bx-reflect-horizontal"></i></button>
+                            <button class="toolbar-button flip-btn" data-plane="azimuth" data-axis="second" title="Mirror around Y axis"><i class="bx bx-reflect-vertical"></i></button>
+                            <button class="toolbar-button delete-btn" data-plane="azimuth" title="Delete this pattern"><i class="bx bx-trash"></i></button>
                         </div>
                     </div>
 
@@ -122,75 +61,14 @@
                             <canvas id="elevation-xz-chart"></canvas>
                         </div>
                         <div class="pattern-controls">
-                            <button
-                                class="toolbar-button paste-btn"
-                                data-plane="elevation-xz"
-                            >
-                                Paste CSV
-                            </button>
-                            <div class="rotate-controls">
-                                <button
-                                    class="toolbar-button rotate-btn"
-                                    data-plane="elevation-xz"
-                                    data-direction="ccw"
-                                    title="Rotate counter-clockwise by 90°"
-                                >
-                                    &#8634;
-                                </button>
-                                <button
-                                    class="toolbar-button rotate-btn"
-                                    data-plane="elevation-xz"
-                                    data-direction="cw"
-                                    title="Rotate clockwise by 90°"
-                                >
-                                    &#8635;
-                                </button>
-                            </div>
-                            <div class="swap-controls">
-                                <button
-                                    class="toolbar-button swap-btn"
-                                    data-plane="elevation-xz"
-                                    data-target="azimuth"
-                                    title="Swap this pattern to the XY plane"
-                                >
-                                    Swap to XY
-                                </button>
-                                <button
-                                    class="toolbar-button swap-btn"
-                                    data-plane="elevation-xz"
-                                    data-target="elevation-yz"
-                                    title="Swap this pattern to the YZ plane"
-                                >
-                                    Swap to YZ
-                                </button>
-                            </div>
-                        </div>
-                        <div class="pattern-controls">
-                            <div class="flip-controls">
-                                <button
-                                    class="toolbar-button flip-btn"
-                                    data-plane="elevation-xz"
-                                    data-axis="first"
-                                    title="Mirror pattern around X axis"
-                                >
-                                    Mirror X
-                                </button>
-                                <button
-                                    class="toolbar-button flip-btn"
-                                    data-plane="elevation-xz"
-                                    data-axis="second"
-                                    title="Mirror pattern around Z axis"
-                                >
-                                    Mirror Z
-                                </button>
-                            </div>
-                            <button
-                                class="toolbar-button delete-btn"
-                                data-plane="elevation-xz"
-                                title="Delete this pattern"
-                            >
-                                Delete
-                            </button>
+                            <button class="toolbar-button paste-btn" data-plane="elevation-xz" title="Paste CSV"><i class="bx bx-paste"></i></button>
+                            <button class="toolbar-button rotate-btn" data-plane="elevation-xz" data-direction="ccw" title="Rotate counter-clockwise by 90°"><i class="bx bx-shape-rotate-ccw"></i></button>
+                            <button class="toolbar-button rotate-btn" data-plane="elevation-xz" data-direction="cw" title="Rotate clockwise by 90°"><i class="bx bx-shape-rotate-cw"></i></button>
+                            <button class="toolbar-button swap-btn" data-plane="elevation-xz" data-target="azimuth" title="Swap to XY" style="color: #4080e0"><i class="bx bx-arrow-left-right"></i></button>
+                            <button class="toolbar-button swap-btn" data-plane="elevation-xz" data-target="elevation-yz" title="Swap to YZ" style="color: #e04040"><i class="bx bx-arrow-left-right"></i></button>
+                            <button class="toolbar-button flip-btn" data-plane="elevation-xz" data-axis="first" title="Mirror around X axis"><i class="bx bx-reflect-horizontal"></i></button>
+                            <button class="toolbar-button flip-btn" data-plane="elevation-xz" data-axis="second" title="Mirror around Z axis"><i class="bx bx-reflect-vertical"></i></button>
+                            <button class="toolbar-button delete-btn" data-plane="elevation-xz" title="Delete this pattern"><i class="bx bx-trash"></i></button>
                         </div>
                     </div>
 
@@ -206,75 +84,14 @@
                             <canvas id="elevation-yz-chart"></canvas>
                         </div>
                         <div class="pattern-controls">
-                            <button
-                                class="toolbar-button paste-btn"
-                                data-plane="elevation-yz"
-                            >
-                                Paste CSV
-                            </button>
-                            <div class="rotate-controls">
-                                <button
-                                    class="toolbar-button rotate-btn"
-                                    data-plane="elevation-yz"
-                                    data-direction="ccw"
-                                    title="Rotate counter-clockwise by 90°"
-                                >
-                                    &#8634;
-                                </button>
-                                <button
-                                    class="toolbar-button rotate-btn"
-                                    data-plane="elevation-yz"
-                                    data-direction="cw"
-                                    title="Rotate clockwise by 90°"
-                                >
-                                    &#8635;
-                                </button>
-                            </div>
-                            <div class="swap-controls">
-                                <button
-                                    class="toolbar-button swap-btn"
-                                    data-plane="elevation-yz"
-                                    data-target="azimuth"
-                                    title="Swap this pattern to the XY plane"
-                                >
-                                    Swap to XY
-                                </button>
-                                <button
-                                    class="toolbar-button swap-btn"
-                                    data-plane="elevation-yz"
-                                    data-target="elevation-xz"
-                                    title="Swap this pattern to the XZ plane"
-                                >
-                                    Swap to XZ
-                                </button>
-                            </div>
-                        </div>
-                        <div class="pattern-controls">
-                            <div class="flip-controls">
-                                <button
-                                    class="toolbar-button flip-btn"
-                                    data-plane="elevation-yz"
-                                    data-axis="first"
-                                    title="Mirror pattern around Y axis"
-                                >
-                                    Mirror Y
-                                </button>
-                                <button
-                                    class="toolbar-button flip-btn"
-                                    data-plane="elevation-yz"
-                                    data-axis="second"
-                                    title="Mirror pattern around Z axis"
-                                >
-                                    Mirror Z
-                                </button>
-                            </div>
-                            <button
-                                class="toolbar-button delete-btn"
-                                data-plane="elevation-yz"
-                                title="Delete this pattern"
-                            >
-                                Delete
-                            </button>
+                            <button class="toolbar-button paste-btn" data-plane="elevation-yz" title="Paste CSV"><i class="bx bx-paste"></i></button>
+                            <button class="toolbar-button rotate-btn" data-plane="elevation-yz" data-direction="ccw" title="Rotate counter-clockwise by 90°"><i class="bx bx-shape-rotate-ccw"></i></button>
+                            <button class="toolbar-button rotate-btn" data-plane="elevation-yz" data-direction="cw" title="Rotate clockwise by 90°"><i class="bx bx-shape-rotate-cw"></i></button>
+                            <button class="toolbar-button swap-btn" data-plane="elevation-yz" data-target="azimuth" title="Swap to XY" style="color: #4080e0"><i class="bx bx-arrow-left-right"></i></button>
+                            <button class="toolbar-button swap-btn" data-plane="elevation-yz" data-target="elevation-xz" title="Swap to XZ" style="color: #40b040"><i class="bx bx-arrow-left-right"></i></button>
+                            <button class="toolbar-button flip-btn" data-plane="elevation-yz" data-axis="first" title="Mirror around Y axis"><i class="bx bx-reflect-horizontal"></i></button>
+                            <button class="toolbar-button flip-btn" data-plane="elevation-yz" data-axis="second" title="Mirror around Z axis"><i class="bx bx-reflect-vertical"></i></button>
+                            <button class="toolbar-button delete-btn" data-plane="elevation-yz" title="Delete this pattern"><i class="bx bx-trash"></i></button>
                         </div>
                     </div>
                 </div>
