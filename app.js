@@ -704,6 +704,11 @@ function initializeEventListeners() {
     toggleDropdown("model-menu", "model-btn");
   });
 
+  document.getElementById("orientation-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleDropdown("orientation-menu", "orientation-btn");
+  });
+
   // Close dropdowns when clicking outside
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".dropdown-button")) {
