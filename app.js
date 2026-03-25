@@ -904,7 +904,7 @@ function initializeEventListeners() {
 
   // Roll slider (display-only local Z-axis rotation)
   document.getElementById("view-roll").addEventListener("input", (e) => {
-    view3D.roll = parseFloat(e.target.value);
+    view3D.roll = -parseFloat(e.target.value);
     document.getElementById("view-roll-value").textContent = e.target.value + "°";
     redraw3D();
   });
