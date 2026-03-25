@@ -1849,7 +1849,7 @@ function redraw3D() {
     ctx.setLineDash([]); // Reset to solid lines
   }
 
-  // Draw azimuth north arrow (flat on the appropriate plane)
+  // Draw azimuth north arrow (always flat on the horizontal plane, unaffected by downtilt/roll)
   {
     ctx.save();
     ctx.setLineDash([]);
@@ -1863,26 +1863,22 @@ function redraw3D() {
     const notchDist = arrowStart + arrowLen * 0.2;
     const hw = 0.09;
 
-    let tip, baseL, baseR, notch;
-    if (antennaOrientation.mountType === "wall") {
-      // ZY plane, past Z indicator, spread in localX
-      tip = projectAntennaToScreen(0, 0, tipDist);
-      baseL = projectAntennaToScreen(-hw, 0, baseDist);
-      baseR = projectAntennaToScreen(hw, 0, baseDist);
-      notch = projectAntennaToScreen(0, 0, notchDist);
-    } else if (antennaOrientation.mountType === "table") {
-      // XY plane, opposite side of X, spread in localX
-      tip = projectAntennaToScreen(0, -tipDist, 0);
-      baseL = projectAntennaToScreen(hw, -baseDist, 0);
-      baseR = projectAntennaToScreen(-hw, -baseDist, 0);
-      notch = projectAntennaToScreen(0, -notchDist, 0);
-    } else {
-      // Ceiling (default): XY plane, past X indicator, spread in localX
-      tip = projectAntennaToScreen(0, tipDist, 0);
-      baseL = projectAntennaToScreen(-hw, baseDist, 0);
-      baseR = projectAntennaToScreen(hw, baseDist, 0);
-      notch = projectAntennaToScreen(0, notchDist, 0);
-    }
+    // Compute arrow in world space: flat on XY plane at Z=0,
+    // rotated only by azimuth/direction (world Z rotation)
+    const az = (view3D.azimuthDirection * Math.PI) / 180;
+    // Arrow forward direction (beam projected onto horizontal plane)
+    const fwdX = Math.sin(az);
+    const fwdY = -Math.cos(az);
+    // Arrow spread direction (perpendicular, also horizontal)
+    const sideX = Math.cos(az);
+    const sideY = Math.sin(az);
+
+    const tip = projectWorldToScreen(fwdX * tipDist, fwdY * tipDist, 0);
+    const baseL = projectWorldToScreen(
+      fwdX * baseDist - sideX * hw, fwdY * baseDist - sideY * hw, 0);
+    const baseR = projectWorldToScreen(
+      fwdX * baseDist + sideX * hw, fwdY * baseDist + sideY * hw, 0);
+    const notch = projectWorldToScreen(fwdX * notchDist, fwdY * notchDist, 0);
 
     ctx.beginPath();
     ctx.moveTo(tip.x, tip.y);
