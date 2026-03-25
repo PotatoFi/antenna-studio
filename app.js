@@ -1802,6 +1802,56 @@ function redraw3D() {
 
     ctx.setLineDash([]); // Reset to solid lines
   }
+
+  // Draw azimuth north arrow (flat on the appropriate plane)
+  {
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    const axisLength = 0.8;
+    const arrowStart = axisLength + 0.2;
+    const arrowLen = 0.16;
+    const tipDist = arrowStart + arrowLen;
+    const baseDist = arrowStart;
+    const notchDist = arrowStart + arrowLen * 0.2;
+    const hw = 0.09;
+
+    let tip, baseL, baseR, notch;
+    if (antennaOrientation.mountType === "wall") {
+      // ZY plane, past Z indicator, spread in localX
+      tip = projectAntennaToScreen(0, 0, tipDist);
+      baseL = projectAntennaToScreen(-hw, 0, baseDist);
+      baseR = projectAntennaToScreen(hw, 0, baseDist);
+      notch = projectAntennaToScreen(0, 0, notchDist);
+    } else if (antennaOrientation.mountType === "table") {
+      // XY plane, opposite side of X, spread in localX
+      tip = projectAntennaToScreen(0, -tipDist, 0);
+      baseL = projectAntennaToScreen(hw, -baseDist, 0);
+      baseR = projectAntennaToScreen(-hw, -baseDist, 0);
+      notch = projectAntennaToScreen(0, -notchDist, 0);
+    } else {
+      // Ceiling (default): XY plane, past X indicator, spread in localX
+      tip = projectAntennaToScreen(0, tipDist, 0);
+      baseL = projectAntennaToScreen(-hw, baseDist, 0);
+      baseR = projectAntennaToScreen(hw, baseDist, 0);
+      notch = projectAntennaToScreen(0, notchDist, 0);
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(baseR.x, baseR.y);
+    ctx.lineTo(notch.x, notch.y);
+    ctx.lineTo(baseL.x, baseL.y);
+    ctx.closePath();
+    ctx.fillStyle = "#3a7fd5";
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
+  }
 }
 
 // 3D Mouse interaction
