@@ -537,6 +537,9 @@ const view3D = {
   lastMouseY: 0,
   showWorldAxes: true,
   showAntennaAxes: true,
+  downtilt: 0, // Display-only Y-axis rotation (degrees)
+  azimuthDirection: 0, // Display-only world Z-axis rotation (degrees)
+  roll: 0, // Display-only local Z-axis rotation (degrees)
 };
 
 // Currently active pane
@@ -882,6 +885,27 @@ function initializeEventListeners() {
   document.getElementById("ground-height").addEventListener("input", (e) => {
     worldOrientation.groundPlaneZ = parseFloat(e.target.value);
     document.getElementById("ground-height-value").textContent = e.target.value;
+    redraw3D();
+  });
+
+  // Downtilt slider (display-only Y-axis rotation)
+  document.getElementById("view-downtilt").addEventListener("input", (e) => {
+    view3D.downtilt = parseFloat(e.target.value);
+    document.getElementById("view-downtilt-value").textContent = e.target.value + "°";
+    redraw3D();
+  });
+
+  // Azimuth / Direction slider (display-only world Z-axis rotation)
+  document.getElementById("view-azimuth-direction").addEventListener("input", (e) => {
+    view3D.azimuthDirection = parseFloat(e.target.value);
+    document.getElementById("view-azimuth-direction-value").textContent = e.target.value + "°";
+    redraw3D();
+  });
+
+  // Roll slider (display-only local Z-axis rotation)
+  document.getElementById("view-roll").addEventListener("input", (e) => {
+    view3D.roll = -parseFloat(e.target.value);
+    document.getElementById("view-roll-value").textContent = e.target.value + "°";
     redraw3D();
   });
 
@@ -1386,15 +1410,31 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
 
 // Transform a point from antenna-local coordinates to world coordinates
 function antennaToWorld(localX, localY, localZ) {
+  // Apply display-only roll in antenna-local frame (Z rotation) before downtilt
+  const rl = (view3D.roll * Math.PI) / 180;
+  let lx = localX * Math.cos(rl) - localY * Math.sin(rl);
+  let ly = localX * Math.sin(rl) + localY * Math.cos(rl);
+  let lz = localZ;
+
+  // Apply display-only downtilt in antenna-local frame (X rotation) before mount rotation
+  // Note: local X in code maps to visual Y on screen (axes are swapped in drawing)
+  const dt = (view3D.downtilt * Math.PI) / 180;
+  let dx = lx;
+  let dy = ly * Math.cos(dt) - lz * Math.sin(dt);
+  let dz = ly * Math.sin(dt) + lz * Math.cos(dt);
+  lx = dx;
+  ly = dy;
+  lz = dz;
+
   const rx = (antennaOrientation.rotationX * Math.PI) / 180;
   const ry = (antennaOrientation.rotationY * Math.PI) / 180;
   const rz = (antennaOrientation.rotationZ * Math.PI) / 180;
 
   // Apply rotations: Z first, then X, then Y (Euler angles)
   // Rotation around Z axis
-  let x1 = localX * Math.cos(rz) - localY * Math.sin(rz);
-  let y1 = localX * Math.sin(rz) + localY * Math.cos(rz);
-  let z1 = localZ;
+  let x1 = lx * Math.cos(rz) - ly * Math.sin(rz);
+  let y1 = lx * Math.sin(rz) + ly * Math.cos(rz);
+  let z1 = lz;
 
   // Rotation around X axis
   let x2 = x1;
@@ -1406,7 +1446,13 @@ function antennaToWorld(localX, localY, localZ) {
   let y3 = y2;
   let z3 = -x2 * Math.sin(ry) + z2 * Math.cos(ry);
 
-  return { x: x3, y: y3, z: z3 };
+  // Apply display-only roll around world Z axis (after mount rotation)
+  const roll = (view3D.azimuthDirection * Math.PI) / 180;
+  let x4 = x3 * Math.cos(roll) - y3 * Math.sin(roll);
+  let y4 = x3 * Math.sin(roll) + y3 * Math.cos(roll);
+  let z4 = z3;
+
+  return { x: x4, y: y4, z: z4 };
 }
 
 // Set antenna mount type preset
@@ -1803,7 +1849,7 @@ function redraw3D() {
     ctx.setLineDash([]); // Reset to solid lines
   }
 
-  // Draw azimuth north arrow (flat on the appropriate plane)
+  // Draw azimuth north arrow (always flat on the horizontal plane, unaffected by downtilt/roll)
   {
     ctx.save();
     ctx.setLineDash([]);
@@ -1817,26 +1863,22 @@ function redraw3D() {
     const notchDist = arrowStart + arrowLen * 0.2;
     const hw = 0.09;
 
-    let tip, baseL, baseR, notch;
-    if (antennaOrientation.mountType === "wall") {
-      // ZY plane, past Z indicator, spread in localX
-      tip = projectAntennaToScreen(0, 0, tipDist);
-      baseL = projectAntennaToScreen(-hw, 0, baseDist);
-      baseR = projectAntennaToScreen(hw, 0, baseDist);
-      notch = projectAntennaToScreen(0, 0, notchDist);
-    } else if (antennaOrientation.mountType === "table") {
-      // XY plane, opposite side of X, spread in localX
-      tip = projectAntennaToScreen(0, -tipDist, 0);
-      baseL = projectAntennaToScreen(hw, -baseDist, 0);
-      baseR = projectAntennaToScreen(-hw, -baseDist, 0);
-      notch = projectAntennaToScreen(0, -notchDist, 0);
-    } else {
-      // Ceiling (default): XY plane, past X indicator, spread in localX
-      tip = projectAntennaToScreen(0, tipDist, 0);
-      baseL = projectAntennaToScreen(-hw, baseDist, 0);
-      baseR = projectAntennaToScreen(hw, baseDist, 0);
-      notch = projectAntennaToScreen(0, notchDist, 0);
-    }
+    // Compute arrow in world space: flat on XY plane at Z=0,
+    // rotated only by azimuth/direction (world Z rotation)
+    const az = (view3D.azimuthDirection * Math.PI) / 180;
+    // Arrow forward direction (beam projected onto horizontal plane)
+    const fwdX = Math.sin(az);
+    const fwdY = -Math.cos(az);
+    // Arrow spread direction (perpendicular, also horizontal)
+    const sideX = Math.cos(az);
+    const sideY = Math.sin(az);
+
+    const tip = projectWorldToScreen(fwdX * tipDist, fwdY * tipDist, 0);
+    const baseL = projectWorldToScreen(
+      fwdX * baseDist - sideX * hw, fwdY * baseDist - sideY * hw, 0);
+    const baseR = projectWorldToScreen(
+      fwdX * baseDist + sideX * hw, fwdY * baseDist + sideY * hw, 0);
+    const notch = projectWorldToScreen(fwdX * notchDist, fwdY * notchDist, 0);
 
     ctx.beginPath();
     ctx.moveTo(tip.x, tip.y);

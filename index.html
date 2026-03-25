@@ -422,15 +422,17 @@
                     </label>
                     <div class="slider-row">
                         <label>Height:</label>
-                        <input
-                            type="range"
-                            id="ground-height"
-                            min="-3"
-                            max="0"
-                            step="0.1"
-                            value="-1.5"
-                        />
-                        <span id="ground-height-value">-1.5</span>
+                        <div class="slider-input">
+                            <input
+                                type="range"
+                                id="ground-height"
+                                min="-3"
+                                max="0"
+                                step="0.1"
+                                value="-1.5"
+                            />
+                            <span id="ground-height-value">-1.5</span>
+                        </div>
                     </div>
                     <h4>Planes</h4>
                     <label>
@@ -448,30 +450,77 @@
                         <span class="color-indicator elevation-yz"></span>
                         Elevation (YZ)
                     </label>
+                    <h4>Orientation</h4>
+                    <div class="slider-row">
+                        <label>Downtilt / Pitch:</label>
+                        <div class="slider-input">
+                            <input
+                                type="range"
+                                id="view-downtilt"
+                                min="-90"
+                                max="90"
+                                step="1"
+                                value="0"
+                            />
+                            <span id="view-downtilt-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-row">
+                        <label>Azimuth / Direction:</label>
+                        <div class="slider-input">
+                            <input
+                                type="range"
+                                id="view-azimuth-direction"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                            <span id="view-azimuth-direction-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-row">
+                        <label>Roll:</label>
+                        <div class="slider-input">
+                            <input
+                                type="range"
+                                id="view-roll"
+                                min="0"
+                                max="270"
+                                step="1"
+                                value="0"
+                            />
+                            <span id="view-roll-value">0°</span>
+                        </div>
+                    </div>
                     <h4>Gain Range</h4>
                     <div class="slider-row">
                         <label>Min:</label>
-                        <input
-                            type="range"
-                            id="min-gain"
-                            min="-40"
-                            max="20"
-                            step="5"
-                            value="-30"
-                        />
-                        <span id="min-gain-value">-30 dB</span>
+                        <div class="slider-input">
+                            <input
+                                type="range"
+                                id="min-gain"
+                                min="-40"
+                                max="20"
+                                step="5"
+                                value="-30"
+                            />
+                            <span id="min-gain-value">-30 dB</span>
+                        </div>
                     </div>
                     <div class="slider-row">
                         <label>Max:</label>
-                        <input
-                            type="range"
-                            id="max-gain"
-                            min="-40"
-                            max="20"
-                            step="5"
-                            value="10"
-                        />
-                        <span id="max-gain-value">10 dB</span>
+                        <div class="slider-input">
+                            <input
+                                type="range"
+                                id="max-gain"
+                                min="-40"
+                                max="20"
+                                step="5"
+                                value="10"
+                            />
+                            <span id="max-gain-value">10 dB</span>
+                        </div>
                     </div>
                 </div>
             </div>
