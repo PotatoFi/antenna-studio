@@ -537,6 +537,9 @@ const view3D = {
   lastMouseY: 0,
   showWorldAxes: true,
   showAntennaAxes: true,
+  showPhiLabels: false,
+  showThetaLabels: false,
+  showZenithLabels: false,
   downtilt: 0, // Display-only Y-axis rotation (degrees)
   azimuthDirection: 0, // Display-only world Z-axis rotation (degrees)
   roll: 0, // Display-only local Z-axis rotation (degrees)
@@ -886,6 +889,27 @@ function initializeEventListeners() {
       redraw3D();
     });
 
+  document
+    .getElementById("show-phi-labels")
+    .addEventListener("change", (e) => {
+      view3D.showPhiLabels = e.target.checked;
+      redrawAll();
+    });
+
+  document
+    .getElementById("show-theta-labels")
+    .addEventListener("change", (e) => {
+      view3D.showThetaLabels = e.target.checked;
+      redrawAll();
+    });
+
+  document
+    .getElementById("show-zenith-labels")
+    .addEventListener("change", (e) => {
+      view3D.showZenithLabels = e.target.checked;
+      redrawAll();
+    });
+
   // Ground plane height slider
   document.getElementById("ground-height").addEventListener("input", (e) => {
     worldOrientation.groundPlaneZ = parseFloat(e.target.value);
@@ -1233,11 +1257,11 @@ function loadSampleData() {
   ad.azimuth = azimuthData;
 
   // Generate sample elevation pattern (typical dipole-like)
+  // theta=0 is zenith (+Z), theta=90 is horizon — peak at horizon for a dipole
   const elevationXZData = [];
   for (let angle = 0; angle < 360; angle += 10) {
-    // Dipole-like pattern: strong at horizon, null at top/bottom
     const rad = (angle * Math.PI) / 180;
-    const gain = 5 * Math.abs(Math.cos(rad));
+    const gain = 5 * Math.abs(Math.sin(rad));
     elevationXZData.push({ angle, gain: gain - 2 });
   }
   ad.elevationXZ = elevationXZData;
@@ -1246,7 +1270,7 @@ function loadSampleData() {
   const elevationYZData = [];
   for (let angle = 0; angle < 360; angle += 10) {
     const rad = (angle * Math.PI) / 180;
-    const gain = 5 * Math.abs(Math.cos(rad));
+    const gain = 5 * Math.abs(Math.sin(rad));
     elevationYZData.push({ angle, gain: gain - 2 });
   }
   ad.elevationYZ = elevationYZData;
@@ -1288,16 +1312,18 @@ function resizePolarCharts() {
 function redrawPolarCharts() {
   resizePolarCharts();
   const ad = getAntennaData();
-  // Azimuth (XY) rotates around Z axis - use Z color (blue)
-  drawPolarChart("azimuth-chart", ad.azimuth, axisColors.z, "X", "Y");
+  // Azimuth (XY) rotates around Z axis - use Z color (blue).
+  // Axis labels match the chart's drawing convention: angle=0 plots at top
+  // (which is +X in physical space), angle=90 plots at right (+Y).
+  drawPolarChart("azimuth-chart", ad.azimuth, axisColors.z, "Y", "X", "azimuth");
   // Elevation XZ rotates around Y axis - use Y color (green)
-  drawPolarChart("elevation-xz-chart", ad.elevationXZ, axisColors.y, "X", "Z");
+  drawPolarChart("elevation-xz-chart", ad.elevationXZ, axisColors.y, "X", "Z", "elevationXZ");
   // Elevation YZ rotates around X axis - use X color (red)
-  drawPolarChart("elevation-yz-chart", ad.elevationYZ, axisColors.x, "Y", "Z");
+  drawPolarChart("elevation-yz-chart", ad.elevationYZ, axisColors.x, "Y", "Z", "elevationYZ");
 }
 
 // 2D Polar Chart Drawing
-function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
+function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
@@ -1309,7 +1335,11 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
 
   const centerX = width / 2;
   const centerY = height / 2;
-  const maxRadius = Math.min(width, height) / 2 - 30;
+  const sphereLabelsOn =
+    view3D.showPhiLabels || view3D.showThetaLabels || view3D.showZenithLabels;
+  // Reserve more padding when spherical labels are visible so they don't clip.
+  const chartPadding = planeKind && sphereLabelsOn ? 54 : 30;
+  const maxRadius = Math.min(width, height) / 2 - chartPadding;
 
   // Clear canvas - light background
   ctx.fillStyle = "#fff";
@@ -1380,6 +1410,59 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label) {
   ctx.fillStyle = axis2Color;
   ctx.textAlign = "center";
   ctx.fillText(`+${axis2Label}`, centerX, centerY - maxRadius - 8);
+
+  // Draw spherical-coord labels at the four cardinal positions where data
+  // angles 0/90/180/270 plot. Each plane shows only the labels relevant to it.
+  if (planeKind && sphereLabelsOn) {
+    const labelMaps = {
+      azimuth: {
+        top: { phi: "Phi 0", theta: "Theta 90" },
+        right: { phi: "Phi 90", theta: "Theta 90" },
+        bottom: { phi: "Phi 180", theta: "Theta 90" },
+        left: { phi: "Phi 270", theta: "Theta 90" },
+      },
+      elevationXZ: {
+        top: { theta: "Theta 0", zenith: "Zenith" },
+        right: { phi: "Phi 0", theta: "Theta 90" },
+        bottom: { theta: "Theta 180", zenith: "Nadir" },
+        left: { phi: "Phi 180", theta: "Theta 90" },
+      },
+      elevationYZ: {
+        top: { theta: "Theta 0", zenith: "Zenith" },
+        right: { phi: "Phi 90", theta: "Theta 90" },
+        bottom: { theta: "Theta 180", zenith: "Nadir" },
+        left: { phi: "Phi 270", theta: "Theta 90" },
+      },
+    };
+    const map = labelMaps[planeKind];
+    if (map) {
+      const lineHeight = 14;
+      ctx.fillStyle = "#666";
+      ctx.font = "bold 12px sans-serif";
+
+      const positions = {
+        top: { x: centerX, y: centerY - maxRadius - 22, dy: -lineHeight, align: "center" },
+        right: { x: centerX + maxRadius + 6, y: centerY + 18, dy: lineHeight, align: "left" },
+        bottom: { x: centerX, y: centerY + maxRadius + 22, dy: lineHeight, align: "center" },
+        left: { x: centerX - maxRadius - 6, y: centerY + 18, dy: lineHeight, align: "right" },
+      };
+
+      for (const dir of ["top", "right", "bottom", "left"]) {
+        const spec = map[dir];
+        const lines = [];
+        if (view3D.showPhiLabels && spec.phi) lines.push(spec.phi);
+        if (view3D.showThetaLabels && spec.theta) lines.push(spec.theta);
+        if (view3D.showZenithLabels && spec.zenith) lines.push(spec.zenith);
+        if (lines.length === 0) continue;
+
+        const p = positions[dir];
+        ctx.textAlign = p.align;
+        lines.forEach((line, i) => {
+          ctx.fillText(line, p.x, p.y + i * p.dy);
+        });
+      }
+    }
+  }
 
   // Draw antenna pattern
   if (data.length > 0) {
@@ -1756,8 +1839,9 @@ function redraw3D() {
       const rad = (point.angle * Math.PI) / 180;
 
       // Physics X-Z plane: X toward viewer, Z up
-      const physX = r * Math.cos(rad);
-      const physZ = r * Math.sin(rad);
+      // theta=0 along +Z, theta=90 along +X (standard spherical convention)
+      const physX = r * Math.sin(rad);
+      const physZ = r * Math.cos(rad);
       const localX = 0; // physics Y = 0, so internal X = 0
       const localY = physX; // internal Y = physics X
       const localZ = physZ;
@@ -1790,8 +1874,9 @@ function redraw3D() {
       const rad = (point.angle * Math.PI) / 180;
 
       // Physics Y-Z plane: Y to right, Z up
-      const physY = r * Math.cos(rad);
-      const physZ = r * Math.sin(rad);
+      // theta=0 along +Z, theta=90 along +Y (standard spherical convention)
+      const physY = r * Math.sin(rad);
+      const physZ = r * Math.cos(rad);
       const localX = physY; // internal X = physics Y
       const localY = 0; // physics X = 0, so internal Y = 0
       const localZ = physZ;
@@ -1852,6 +1937,40 @@ function redraw3D() {
     ctx.fillText("Z", zEnd.x + 8, zEnd.y + 4);
 
     ctx.setLineDash([]); // Reset to solid lines
+  }
+
+  // Draw spherical-coord labels in antenna-local coords.
+  // Theta is the polar angle from +Z; phi is the azimuthal angle in the XY plane from +X.
+  // In local coords, internal X = physics Y and internal Y = physics X (see pattern rendering),
+  // so phi=0 (+physX) is at +localY and phi=90 (+physY) is at +localX.
+  if (view3D.showPhiLabels || view3D.showThetaLabels || view3D.showZenithLabels) {
+    const r = 1.3;
+    const lineHeight = 14;
+    ctx.fillStyle = "#666";
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "left";
+
+    const anchors = [
+      { local: [0, 0, r], phi: null, theta: "Theta 0", zenith: "Zenith" },
+      { local: [0, 0, -r], phi: null, theta: "Theta 180", zenith: "Nadir" },
+      { local: [0, r, 0], phi: "Phi 0", theta: "Theta 90", zenith: null },
+      { local: [r, 0, 0], phi: "Phi 90", theta: "Theta 90", zenith: null },
+      { local: [0, -r, 0], phi: "Phi 180", theta: "Theta 90", zenith: null },
+      { local: [-r, 0, 0], phi: "Phi 270", theta: "Theta 90", zenith: null },
+    ];
+
+    for (const a of anchors) {
+      const lines = [];
+      if (view3D.showPhiLabels && a.phi) lines.push(a.phi);
+      if (view3D.showThetaLabels && a.theta) lines.push(a.theta);
+      if (view3D.showZenithLabels && a.zenith) lines.push(a.zenith);
+      if (lines.length === 0) continue;
+
+      const pos = projectAntennaToScreen(a.local[0], a.local[1], a.local[2]);
+      lines.forEach((line, i) => {
+        ctx.fillText(line, pos.x + 6, pos.y + 4 + i * lineHeight);
+      });
+    }
   }
 
   // Draw azimuth north arrow (always flat on the horizontal plane, unaffected by downtilt/roll)
@@ -1952,12 +2071,34 @@ function setZoom(newZoom) {
 }
 
 // Export functionality
+// Convert legacy elevation angles (0=horizon, 90=zenith) to theta convention
+// (0=zenith, 90=horizon). theta = (90 - oldAngle + 360) % 360.
+function convertLegacyElevationAngles(data) {
+  return data.map((point) => ({
+    angle: ((90 - point.angle) % 360 + 360) % 360,
+    gain: point.gain,
+  })).sort((a, b) => a.angle - b.angle);
+}
+
 function importAntennaFile(text) {
   const lines = text.split("\n");
   let section = null;
   let importedMountType = null;
   let importedFormfactor = null;
   let importedName = null;
+
+  // Detect format version. Files without an explicit version are legacy (v1)
+  // and need elevation-angle conversion. Look for "# Format Version,N" line.
+  let formatVersion = 1;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const m = line.match(/^#\s*Format\s+Version\s*,\s*(\d+)/i);
+    if (m) {
+      formatVersion = parseInt(m[1], 10);
+      break;
+    }
+  }
+  const needsLegacyConversion = formatVersion < 2;
 
   // Detect multi-radio format by looking for "## Radio:" headers
   const isMultiRadio = lines.some((l) => l.trim().startsWith("## Radio:"));
@@ -1971,7 +2112,13 @@ function importAntennaFile(text) {
 
     function flushPlane() {
       if (currentRadio && currentPlane && currentLines.length > 0) {
-        const data = parseCSV(currentLines.join("\n"));
+        let data = parseCSV(currentLines.join("\n"));
+        if (
+          needsLegacyConversion &&
+          (currentPlane === "elevationXZ" || currentPlane === "elevationYZ")
+        ) {
+          data = convertLegacyElevationAngles(data);
+        }
         if (data.length > 0) {
           currentRadio.antennaData[currentPlane] = data;
           currentRadio.planeVisibility[currentPlane] = true;
@@ -2080,7 +2227,13 @@ function importAntennaFile(text) {
     // Parse and apply plane data to active radio
     for (const [key, csvLines] of Object.entries(sectionLines)) {
       if (csvLines.length > 0) {
-        const data = parseCSV(csvLines.join("\n"));
+        let data = parseCSV(csvLines.join("\n"));
+        if (
+          needsLegacyConversion &&
+          (key === "elevationXZ" || key === "elevationYZ")
+        ) {
+          data = convertLegacyElevationAngles(data);
+        }
         if (data.length > 0) {
           getAntennaData()[key] = data;
           getPlaneVisibility()[key] = true;
@@ -2129,9 +2282,12 @@ function importAntennaFile(text) {
   redrawAll();
 }
 
+const ANTENNA_FORMAT_VERSION = 2;
+
 function exportData() {
   let output = "# Antenna Pattern Export\n";
-  output += "# Generated by Antenna Studio\n\n";
+  output += "# Generated by Antenna Studio\n";
+  output += `# Format Version,${ANTENNA_FORMAT_VERSION}\n\n`;
 
   const antennaName = document.getElementById("antenna-name").value.trim();
 
