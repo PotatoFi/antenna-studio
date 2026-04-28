@@ -1684,101 +1684,118 @@ function redraw3D() {
     return projectWorldToScreen(world.x, world.y, world.z);
   }
 
-  // Draw ground plane (in world coordinates, at groundPlaneZ)
-  if (showGroundPlane) {
-    const groundZ = worldOrientation.groundPlaneZ;
-    const gridSize = 2.0;
-    const gridSteps = 8;
+  function drawGroundAndAxes() {
+    // Draw ground plane (in world coordinates, at groundPlaneZ)
+    if (showGroundPlane) {
+      const groundZ = worldOrientation.groundPlaneZ;
+      const gridSize = 2.0;
+      const gridSteps = 8;
 
-    ctx.strokeStyle = "#ddd";
-    ctx.lineWidth = 1;
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 1;
 
-    for (let i = -gridSteps; i <= gridSteps; i++) {
-      const t = (i / gridSteps) * gridSize;
+      for (let i = -gridSteps; i <= gridSteps; i++) {
+        const t = (i / gridSteps) * gridSize;
 
-      // Lines parallel to X axis (along Y direction)
-      const p1 = projectWorldToScreen(-gridSize, t, groundZ);
-      const p2 = projectWorldToScreen(gridSize, t, groundZ);
+        // Lines parallel to X axis (along Y direction)
+        const p1 = projectWorldToScreen(-gridSize, t, groundZ);
+        const p2 = projectWorldToScreen(gridSize, t, groundZ);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        // Lines parallel to Y axis (along X direction)
+        const p3 = projectWorldToScreen(t, -gridSize, groundZ);
+        const p4 = projectWorldToScreen(t, gridSize, groundZ);
+        ctx.beginPath();
+        ctx.moveTo(p3.x, p3.y);
+        ctx.lineTo(p4.x, p4.y);
+        ctx.stroke();
+      }
+
+      // Draw ground plane outline
+      ctx.strokeStyle = "#bbb";
+      ctx.lineWidth = 2;
+      const corners = [
+        projectWorldToScreen(-gridSize, -gridSize, groundZ),
+        projectWorldToScreen(gridSize, -gridSize, groundZ),
+        projectWorldToScreen(gridSize, gridSize, groundZ),
+        projectWorldToScreen(-gridSize, gridSize, groundZ),
+      ];
       ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
-
-      // Lines parallel to Y axis (along X direction)
-      const p3 = projectWorldToScreen(t, -gridSize, groundZ);
-      const p4 = projectWorldToScreen(t, gridSize, groundZ);
-      ctx.beginPath();
-      ctx.moveTo(p3.x, p3.y);
-      ctx.lineTo(p4.x, p4.y);
+      ctx.moveTo(corners[0].x, corners[0].y);
+      for (let i = 1; i < 4; i++) {
+        ctx.lineTo(corners[i].x, corners[i].y);
+      }
+      ctx.closePath();
       ctx.stroke();
     }
 
-    // Draw ground plane outline
-    ctx.strokeStyle = "#bbb";
-    ctx.lineWidth = 2;
-    const corners = [
-      projectWorldToScreen(-gridSize, -gridSize, groundZ),
-      projectWorldToScreen(gridSize, -gridSize, groundZ),
-      projectWorldToScreen(gridSize, gridSize, groundZ),
-      projectWorldToScreen(-gridSize, gridSize, groundZ),
-    ];
-    ctx.beginPath();
-    ctx.moveTo(corners[0].x, corners[0].y);
-    for (let i = 1; i < 4; i++) {
-      ctx.lineTo(corners[i].x, corners[i].y);
+    // Draw world axes (solid lines, at back corner of ground plane)
+    // Physics/ISO convention: X toward viewer (down-left), Y to the right (down-right), Z up
+    if (view3D.showWorldAxes) {
+      const groundZ = worldOrientation.groundPlaneZ;
+      const gridSize = 2.0;
+      const axisLength = 1.0;
+
+      // Position axes at back corner (-gridSize, -gridSize, groundZ)
+      const cornerX = -gridSize;
+      const cornerY = -gridSize;
+      const origin = projectWorldToScreen(cornerX, cornerY, groundZ);
+
+      ctx.lineWidth = 3;
+
+      // X axis (red) - toward viewer (down-left in isometric view)
+      ctx.strokeStyle = axisColors.x;
+      const xEnd = projectWorldToScreen(cornerX, cornerY + axisLength, groundZ);
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(xEnd.x, xEnd.y);
+      ctx.stroke();
+      ctx.fillStyle = axisColors.x;
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillText("X", xEnd.x + 8, xEnd.y + 4);
+
+      // Y axis (green) - to the right (down-right in isometric view)
+      ctx.strokeStyle = axisColors.y;
+      const yEnd = projectWorldToScreen(cornerX + axisLength, cornerY, groundZ);
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(yEnd.x, yEnd.y);
+      ctx.stroke();
+      ctx.fillStyle = axisColors.y;
+      ctx.fillText("Y", yEnd.x + 8, yEnd.y + 4);
+
+      // Z axis (blue) - up
+      ctx.strokeStyle = axisColors.z;
+      const zEnd = projectWorldToScreen(cornerX, cornerY, groundZ + axisLength);
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(zEnd.x, zEnd.y);
+      ctx.stroke();
+      ctx.fillStyle = axisColors.z;
+      ctx.fillText("Z", zEnd.x + 8, zEnd.y + 4);
     }
-    ctx.closePath();
-    ctx.stroke();
   }
 
-  // Draw world axes (solid lines, at back corner of ground plane)
-  // Physics/ISO convention: X toward viewer (down-left), Y to the right (down-right), Z up
-  if (view3D.showWorldAxes) {
-    const groundZ = worldOrientation.groundPlaneZ;
-    const gridSize = 2.0;
-    const axisLength = 1.0;
+  // Arrow direction — hoisted so drawAzimuthArrow() can close over them.
+  const az = (view3D.azimuthDirection * Math.PI) / 180;
+  const fwdX = Math.sin(az);
+  const fwdY = -Math.cos(az);
+  const sideX = Math.cos(az);
+  const sideY = Math.sin(az);
+  const arrowMidDist = 0.8 + 0.2 + 0.08; // axisLength + 0.2 offset + half arrowLen
 
-    // Position axes at back corner (-gridSize, -gridSize, groundZ)
-    const cornerX = -gridSize;
-    const cornerY = -gridSize;
-    const origin = projectWorldToScreen(cornerX, cornerY, groundZ);
-
-    ctx.lineWidth = 3;
-
-    // X axis (red) - toward viewer (down-left in isometric view)
-    ctx.strokeStyle = axisColors.x;
-    const xEnd = projectWorldToScreen(cornerX, cornerY + axisLength, groundZ);
-    ctx.beginPath();
-    ctx.moveTo(origin.x, origin.y);
-    ctx.lineTo(xEnd.x, xEnd.y);
-    ctx.stroke();
-    ctx.fillStyle = axisColors.x;
-    ctx.font = "bold 12px sans-serif";
-    ctx.fillText("X", xEnd.x + 8, xEnd.y + 4);
-
-    // Y axis (green) - to the right (down-right in isometric view)
-    ctx.strokeStyle = axisColors.y;
-    const yEnd = projectWorldToScreen(cornerX + axisLength, cornerY, groundZ);
-    ctx.beginPath();
-    ctx.moveTo(origin.x, origin.y);
-    ctx.lineTo(yEnd.x, yEnd.y);
-    ctx.stroke();
-    ctx.fillStyle = axisColors.y;
-    ctx.fillText("Y", yEnd.x + 8, yEnd.y + 4);
-
-    // Z axis (blue) - up
-    ctx.strokeStyle = axisColors.z;
-    const zEnd = projectWorldToScreen(cornerX, cornerY, groundZ + axisLength);
-    ctx.beginPath();
-    ctx.moveTo(origin.x, origin.y);
-    ctx.lineTo(zEnd.x, zEnd.y);
-    ctx.stroke();
-    ctx.fillStyle = axisColors.z;
-    ctx.fillText("Z", zEnd.x + 8, zEnd.y + 4);
-  }
-
-  // Draw AP model (before antenna patterns so patterns appear on top)
-  drawAPModel(ctx, projectAntennaToScreen);
+  // Depth-sort ground plane, arrow, and AP model together (painter's algorithm).
+  // drawAPModel sorts its own faces internally; use the world-origin depth (0) as its sort key.
+  const drawables = [
+    { depth: projectWorldToScreen(0, 0, worldOrientation.groundPlaneZ).z, draw: drawGroundAndAxes },
+    { depth: projectWorldToScreen(fwdX * arrowMidDist, fwdY * arrowMidDist, 0).z, draw: drawAzimuthArrow },
+    { depth: 0, draw: () => drawAPModel(ctx, projectAntennaToScreen) },
+  ];
+  drawables.sort((a, b) => a.depth - b.depth);
+  for (const { draw } of drawables) draw();
 
   const ad = getAntennaData();
   const pv = getPlaneVisibility();
@@ -1973,8 +1990,9 @@ function redraw3D() {
     }
   }
 
-  // Draw azimuth north arrow (always flat on the horizontal plane, unaffected by downtilt/roll)
-  {
+  // Draw azimuth north arrow (always flat on the horizontal plane, unaffected by downtilt/roll).
+  // az/fwdX/fwdY/sideX/sideY are hoisted above for depth sorting.
+  function drawAzimuthArrow() {
     ctx.save();
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
@@ -1986,16 +2004,6 @@ function redraw3D() {
     const baseDist = arrowStart;
     const notchDist = arrowStart + arrowLen * 0.2;
     const hw = 0.09;
-
-    // Compute arrow in world space: flat on XY plane at Z=0,
-    // rotated only by azimuth/direction (world Z rotation)
-    const az = (view3D.azimuthDirection * Math.PI) / 180;
-    // Arrow forward direction (beam projected onto horizontal plane)
-    const fwdX = Math.sin(az);
-    const fwdY = -Math.cos(az);
-    // Arrow spread direction (perpendicular, also horizontal)
-    const sideX = Math.cos(az);
-    const sideY = Math.sin(az);
 
     const tip = projectWorldToScreen(fwdX * tipDist, fwdY * tipDist, 0);
     const baseL = projectWorldToScreen(
@@ -2018,6 +2026,7 @@ function redraw3D() {
 
     ctx.restore();
   }
+
 }
 
 // 3D Mouse interaction
