@@ -1314,7 +1314,8 @@ function redrawPolarCharts() {
   const ad = getAntennaData();
   // Azimuth (XY) rotates around Z axis - use Z color (blue).
   // Axis labels match the chart's drawing convention: angle=0 plots at top
-  // (which is +X in physical space), angle=90 plots at right (+Y).
+  // (which is +X in physical space), angle=90 plots at left (+Y). Viewed
+  // from +Z (top-down view), so the chart stays right-handed.
   drawPolarChart("azimuth-chart", ad.azimuth, axisColors.z, "Y", "X", "azimuth");
   // Elevation XZ rotates around Y axis - use Y color (green)
   drawPolarChart("elevation-xz-chart", ad.elevationXZ, axisColors.y, "X", "Z", "elevationXZ");
@@ -1389,17 +1390,17 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind
   const axis1Color = axisColors[axis1Label.toLowerCase()];
   const axis2Color = axisColors[axis2Label.toLowerCase()];
 
-  // Positive axis1 (right, 0°)
+  // Positive axis1 (left)
   ctx.strokeStyle = axis1Color;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(centerX, centerY);
-  ctx.lineTo(centerX + maxRadius + 3, centerY);
+  ctx.lineTo(centerX - maxRadius - 3, centerY);
   ctx.stroke();
   ctx.fillStyle = axis1Color;
   ctx.font = "bold 10px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText(`+${axis1Label}`, centerX + maxRadius + 6, centerY + 4);
+  ctx.textAlign = "right";
+  ctx.fillText(`+${axis1Label}`, centerX - maxRadius - 6, centerY + 4);
 
   // Positive axis2 (up)
   ctx.strokeStyle = axis2Color;
@@ -1417,21 +1418,21 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind
     const labelMaps = {
       azimuth: {
         top: { phi: "Phi 0", theta: "Theta 90" },
-        right: { phi: "Phi 90", theta: "Theta 90" },
+        left: { phi: "Phi 90", theta: "Theta 90" },
         bottom: { phi: "Phi 180", theta: "Theta 90" },
-        left: { phi: "Phi 270", theta: "Theta 90" },
+        right: { phi: "Phi 270", theta: "Theta 90" },
       },
       elevationXZ: {
         top: { theta: "Theta 0", zenith: "Zenith" },
-        right: { phi: "Phi 0", theta: "Theta 90" },
+        left: { phi: "Phi 0", theta: "Theta 90" },
         bottom: { theta: "Theta 180", zenith: "Nadir" },
-        left: { phi: "Phi 180", theta: "Theta 90" },
+        right: { phi: "Phi 180", theta: "Theta 90" },
       },
       elevationYZ: {
         top: { theta: "Theta 0", zenith: "Zenith" },
-        right: { phi: "Phi 90", theta: "Theta 90" },
+        left: { phi: "Phi 90", theta: "Theta 90" },
         bottom: { theta: "Theta 180", zenith: "Nadir" },
-        left: { phi: "Phi 270", theta: "Theta 90" },
+        right: { phi: "Phi 270", theta: "Theta 90" },
       },
     };
     const map = labelMaps[planeKind];
@@ -1474,7 +1475,7 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind
       const point = data[i % data.length];
       const normalizedGain = (point.gain - minGain) / gainRange;
       const radius = Math.max(0, normalizedGain) * maxRadius;
-      const rad = ((point.angle - 90) * Math.PI) / 180;
+      const rad = ((-point.angle - 90) * Math.PI) / 180;
       const x = centerX + Math.cos(rad) * radius;
       const y = centerY + Math.sin(rad) * radius;
 
