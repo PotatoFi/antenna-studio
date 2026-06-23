@@ -39,7 +39,43 @@ function getPlaneVisibility() {
 const apModel = {
   type: "disc", // Current selected model type
   show: true,
+  logoPosition: "center", // none | center | top | bottom | lowerLeft | lowerRight | upperLeft | upperRight
 };
+
+// Formfactors that can display a face logo (flat/disc-like forms)
+const logoCapableModels = new Set([
+  "disc",
+  "squircle",
+  "hospitality",
+  "can",
+  "patch",
+  "flat",
+]);
+
+// Logo color — medium grey, matches model outline
+const logoColor = "oklch(60% 0 0)";
+
+// Stroke-font glyphs for the "ACME" logo. Each glyph is an array of polylines
+// (a polyline is a list of [x, y] points) on a normalized 0..1 grid where
+// x is the reading direction (left to right) and y is letter height
+// (0 = baseline, 1 = top). Straight segments only.
+const logoGlyphs = {
+  A: [
+    [[0, 0], [0.5, 1], [1, 0]],
+    [[0.2, 0.4], [0.8, 0.4]],
+  ],
+  C: [
+    [[1, 1], [0, 1], [0, 0], [1, 0]],
+  ],
+  M: [
+    [[0, 0], [0, 1], [0.5, 0.4], [1, 1], [1, 0]],
+  ],
+  E: [
+    [[1, 1], [0, 1], [0, 0], [1, 0]],
+    [[0, 0.5], [0.7, 0.5]],
+  ],
+};
+const logoText = "ACME";
 
 // AP Model colors using oklch
 const apColors = {
@@ -785,6 +821,16 @@ function initializeEventListeners() {
       redraw3D();
     });
   });
+
+  // AP logo position radio buttons
+  document
+    .querySelectorAll('input[name="ap-logo-position"]')
+    .forEach((radio) => {
+      radio.addEventListener("change", (e) => {
+        apModel.logoPosition = e.target.value;
+        redraw3D();
+      });
+    });
 
   // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
@@ -1636,6 +1682,108 @@ function drawAPModel(ctx, projectAntennaToScreen) {
     ctx.lineWidth = 1;
     ctx.stroke();
   }
+
+  // Draw the face logo on top of the model faces
+  drawAPLogo(ctx, projectAntennaToScreen, geometry);
+}
+
+// Draw "ACME" logo on the top face of the AP model.
+// The logo lies in the local XY plane at the model's top face, with the top
+// of the letters pointing toward the visual X axis.
+function drawAPLogo(ctx, projectAntennaToScreen, geometry) {
+  if (apModel.logoPosition === "none") return;
+  if (!logoCapableModels.has(apModel.type)) return;
+  if (!geometry || geometry.vertices.length === 0) return;
+
+  // Model extents: top-face height and XY footprint
+  let topZ = -Infinity;
+  let maxAbsX = 0;
+  let maxAbsY = 0;
+  for (const v of geometry.vertices) {
+    if (v.z > topZ) topZ = v.z;
+    maxAbsX = Math.max(maxAbsX, Math.abs(v.x));
+    maxAbsY = Math.max(maxAbsY, Math.abs(v.y));
+  }
+  const footprint = Math.min(maxAbsX, maxAbsY) || 0.15;
+  const logoZ = topZ + 0.001; // lift slightly above the face to avoid z-fighting
+
+  // Back-face cull: skip the logo if the top face points away from the camera.
+  // Compare projected depth of a point above the face vs. one below it.
+  const above = projectAntennaToScreen(0, 0, topZ + 0.05);
+  const below = projectAntennaToScreen(0, 0, topZ - 0.05);
+  if (above.z < below.z) return; // top face faces away from viewer
+
+  // Glyph layout in local XY. Note: the drawing swaps local X/Y on screen
+  // (see antennaToWorld), so to put the text top on the visual X axis we map
+  // glyph height to local Y and the reading direction to local X.
+  const glyphH = footprint * 0.25; // letter height (maps to local Y)
+  const glyphW = glyphH * 0.7; // letter width (maps to local X)
+  const gap = glyphW * 0.4; // spacing between letters
+  const totalW = logoText.length * glyphW + (logoText.length - 1) * gap;
+
+  // Center offset of the whole word in the reading direction
+  const startV = -totalW / 2;
+
+  // Position offset of the logo block within the face.
+  // "Top/Bottom" shift along the text-height axis (the visual X axis);
+  // "Left/Right" shift along the reading axis.
+  const off = footprint * 0.45;
+  let offHeight = 0; // toward top of letters
+  let offRead = 0; // along reading direction
+  switch (apModel.logoPosition) {
+    case "top":
+      offHeight = off;
+      break;
+    case "bottom":
+      offHeight = -off;
+      break;
+    case "upperLeft":
+      offHeight = off;
+      offRead = off;
+      break;
+    case "upperRight":
+      offHeight = off;
+      offRead = -off;
+      break;
+    case "lowerLeft":
+      offHeight = -off;
+      offRead = off;
+      break;
+    case "lowerRight":
+      offHeight = -off;
+      offRead = -off;
+      break;
+    case "center":
+    default:
+      break;
+  }
+
+  ctx.strokeStyle = logoColor;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  for (let c = 0; c < logoText.length; c++) {
+    const glyph = logoGlyphs[logoText[c]];
+    if (!glyph) continue;
+    // Reading position of this glyph's left edge
+    const vBase = startV + c * (glyphW + gap);
+
+    for (const polyline of glyph) {
+      ctx.beginPath();
+      for (let p = 0; p < polyline.length; p++) {
+        const [gx, gy] = polyline[p];
+        // gy (height) → local Y so the text top points along the visual X axis;
+        // gx (reading) → local X (drawing swaps local X/Y on screen).
+        const localY = (gy - 0.5) * glyphH + offHeight;
+        const localX = -(vBase + gx * glyphW) + offRead;
+        const pt = projectAntennaToScreen(localX, localY, logoZ);
+        if (p === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+    }
+  }
 }
 
 // 3D Rendering
@@ -2095,6 +2243,7 @@ function importAntennaFile(text) {
   let section = null;
   let importedMountType = null;
   let importedFormfactor = null;
+  let importedLogoPosition = null;
   let importedName = null;
 
   // Detect format version. Files without an explicit version are legacy (v1)
@@ -2181,6 +2330,8 @@ function importAntennaFile(text) {
           importedMountType = line.split(",")[1]?.trim();
         } else if (line.startsWith("Formfactor,")) {
           importedFormfactor = line.split(",")[1]?.trim();
+        } else if (line.startsWith("Logo Position,")) {
+          importedLogoPosition = line.split(",")[1]?.trim();
         }
       } else if (currentRadio && line.startsWith("Min Gain,")) {
         const val = parseFloat(line.split(",")[1]);
@@ -2228,6 +2379,8 @@ function importAntennaFile(text) {
           importedMountType = line.split(",")[1]?.trim();
         } else if (line.startsWith("Formfactor,")) {
           importedFormfactor = line.split(",")[1]?.trim();
+        } else if (line.startsWith("Logo Position,")) {
+          importedLogoPosition = line.split(",")[1]?.trim();
         }
       } else if (section && section !== "properties") {
         sectionLines[section].push(line);
@@ -2288,6 +2441,15 @@ function importAntennaFile(text) {
     }
   }
 
+  // Apply logo position
+  if (importedLogoPosition) {
+    apModel.logoPosition = importedLogoPosition;
+    const r = document.querySelector(
+      `input[name="ap-logo-position"][value="${importedLogoPosition}"]`,
+    );
+    if (r) r.checked = true;
+  }
+
   syncUIToActiveRadio();
   redrawAll();
 }
@@ -2306,6 +2468,7 @@ function exportData() {
   output += `Mounting Type,${antennaOrientation.mountType}\n`;
   const modelName = apModelDefinitions[apModel.type]?.name ?? apModel.type;
   output += `Formfactor,${modelName}\n`;
+  output += `Logo Position,${apModel.logoPosition}\n`;
 
   // Export each radio
   for (const radio of radios) {

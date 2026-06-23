@@ -211,6 +211,28 @@
                         <input type="radio" name="ap-model" value="box" />
                         Box
                     </label>
+
+                    <h4>Logo</h4>
+                    <!-- Only Disabled/Centered are exposed for now. The file
+                         format and drawAPLogo() still support top/bottom/corner
+                         positions, so more can be re-added here later. -->
+                    <label>
+                        <input
+                            type="radio"
+                            name="ap-logo-position"
+                            value="none"
+                        />
+                        Disabled
+                    </label>
+                    <label>
+                        <input
+                            type="radio"
+                            name="ap-logo-position"
+                            value="center"
+                            checked
+                        />
+                        Centered
+                    </label>
                 </div>
             </div>
 
