@@ -882,6 +882,21 @@ function initializeEventListeners() {
     });
   });
 
+  // Paste gain-only buttons - single column, angles auto-distributed 0°-359°
+  document.querySelectorAll(".paste-gain-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const plane = e.currentTarget.dataset.plane;
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text.trim()) {
+          pastePatternFromClipboard(plane, text, true);
+        }
+      } catch (err) {
+        console.error("Failed to read clipboard:", err);
+      }
+    });
+  });
+
   // Rotate buttons
   document.querySelectorAll(".rotate-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -1179,9 +1194,34 @@ function parseCSV(csvText) {
   return data;
 }
 
-function pastePatternFromClipboard(plane, csvText) {
+// Parse a single column of gain values and distribute them evenly from 0° to 359°.
+// The angular step is inferred from the count of values (e.g. 360 values -> 1°,
+// 72 values -> 5°, 24 values -> 15°).
+function parseGainColumn(csvText) {
+  const lines = csvText.trim().split("\n");
+  const gains = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Take the first token in case of stray trailing separators
+    const first = trimmed.split(/[,;\t]+/)[0];
+    const gain = parseFloat(first);
+    if (!isNaN(gain)) {
+      gains.push(gain);
+    }
+  }
+
+  if (gains.length === 0) return [];
+
+  const step = 360 / gains.length;
+  return gains.map((gain, i) => ({ angle: i * step, gain }));
+}
+
+function pastePatternFromClipboard(plane, csvText, gainOnly = false) {
   const dataKey = planeToDataKey(plane);
-  const data = parseCSV(csvText);
+  const data = gainOnly ? parseGainColumn(csvText) : parseCSV(csvText);
 
   if (data.length > 0) {
     getAntennaData()[dataKey] = data;
