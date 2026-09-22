@@ -716,7 +716,7 @@ function showAddRadioPrompt() {
 document.addEventListener("DOMContentLoaded", () => {
   initializeEventListeners();
   renderRadioTabs();
-  loadSampleData();
+  loadDefaultAntennaData();
   resizeCanvas3D();
 });
 
@@ -1330,36 +1330,17 @@ function deletePattern(plane) {
   redrawAll();
 }
 
-// Load sample data for demonstration
-function loadSampleData() {
-  // Generate sample omnidirectional-like pattern for azimuth
-  const azimuthData = [];
-  for (let angle = 0; angle < 360; angle += 10) {
-    // Slight variation to make it interesting
-    const gain = 5 + Math.sin(((angle * Math.PI) / 180) * 2) * 2;
-    azimuthData.push({ angle, gain });
-  }
-  const ad = getAntennaData();
-  ad.azimuth = azimuthData;
+const DEFAULT_AP_CSV_PATH = "ACME_AP72I.csv";
 
-  // Generate sample elevation pattern (typical dipole-like)
-  // theta=0 is zenith (+Z), theta=90 is horizon — peak at horizon for a dipole
-  const elevationXZData = [];
-  for (let angle = 0; angle < 360; angle += 10) {
-    const rad = (angle * Math.PI) / 180;
-    const gain = 5 * Math.abs(Math.sin(rad));
-    elevationXZData.push({ angle, gain: gain - 2 });
+async function loadDefaultAntennaData() {
+  try {
+    const response = await fetch(DEFAULT_AP_CSV_PATH, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    importAntennaFile(text);
+  } catch (err) {
+    console.warn(`Could not load default AP data from ${DEFAULT_AP_CSV_PATH}:`, err);
   }
-  ad.elevationXZ = elevationXZData;
-
-  // Similar pattern for YZ
-  const elevationYZData = [];
-  for (let angle = 0; angle < 360; angle += 10) {
-    const rad = (angle * Math.PI) / 180;
-    const gain = 5 * Math.abs(Math.sin(rad));
-    elevationYZData.push({ angle, gain: gain - 2 });
-  }
-  ad.elevationYZ = elevationYZData;
 }
 
 function redrawAll() {
