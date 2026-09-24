@@ -1,21 +1,31 @@
 // Antenna Creator Application
 
+// Create a new antenna element (one full pattern set) with default state.
+// A radio can hold multiple elements (e.g. radio chains / radiating elements),
+// each with its own three plane arrays. Gain range and plane visibility are
+// shared at the radio level, so they do not live here.
+function createElement(name) {
+  return {
+    name: name,
+    azimuth: [],
+    elevationXZ: [],
+    elevationYZ: [],
+  };
+}
+
 // Create a new radio with default state
 function createRadio(name) {
   return {
     name: name,
-    antennaData: {
-      azimuth: [],
-      elevationXZ: [],
-      elevationYZ: [],
-      minGain: -50,
-      maxGain: 10,
-    },
+    minGain: -50,
+    maxGain: 10,
     planeVisibility: {
       azimuth: true,
       elevationXZ: true,
       elevationYZ: false,
     },
+    elements: [createElement("Element 1")],
+    activeElementIndex: 0,
   };
 }
 
@@ -27,12 +37,16 @@ const radios = [
 ];
 let activeRadioIndex = 0;
 
-// Convenience accessors for the active radio
+// Convenience accessors for the active radio / element
+function getActiveRadio() {
+  return radios[activeRadioIndex];
+}
 function getAntennaData() {
-  return radios[activeRadioIndex].antennaData;
+  const radio = getActiveRadio();
+  return radio.elements[radio.activeElementIndex];
 }
 function getPlaneVisibility() {
-  return radios[activeRadioIndex].planeVisibility;
+  return getActiveRadio().planeVisibility;
 }
 
 // AP Model state
@@ -592,24 +606,27 @@ function switchToRadio(index) {
   if (index < 0 || index >= radios.length) return;
   activeRadioIndex = index;
   renderRadioTabs();
+  renderElementTabs();
   syncUIToActiveRadio();
   redrawAll();
 }
 
 function syncUIToActiveRadio() {
-  const ad = getAntennaData();
+  const radio = getActiveRadio();
   const pv = getPlaneVisibility();
 
-  // Sync gain sliders
+  // Sync gain sliders (gain range is shared per radio)
   const minSlider = document.getElementById("min-gain");
   const maxSlider = document.getElementById("max-gain");
   if (minSlider) {
-    minSlider.value = ad.minGain;
-    document.getElementById("min-gain-value").textContent = ad.minGain + " dB";
+    minSlider.value = radio.minGain;
+    document.getElementById("min-gain-value").textContent =
+      radio.minGain + " dB";
   }
   if (maxSlider) {
-    maxSlider.value = ad.maxGain;
-    document.getElementById("max-gain-value").textContent = ad.maxGain + " dB";
+    maxSlider.value = radio.maxGain;
+    document.getElementById("max-gain-value").textContent =
+      radio.maxGain + " dB";
   }
 
   // Sync plane visibility checkboxes
@@ -628,6 +645,7 @@ function addRadio(name) {
 
 function removeRadio(index) {
   if (radios.length <= 1) return; // Must keep at least one
+  if (!confirm(`Delete radio "${radios[index].name}"?`)) return;
   radios.splice(index, 1);
   if (activeRadioIndex >= radios.length) {
     activeRadioIndex = radios.length - 1;
@@ -712,10 +730,125 @@ function showAddRadioPrompt() {
   }
 }
 
+// --- Antenna elements (per radio) ---
+
+function switchToElement(index) {
+  const radio = getActiveRadio();
+  if (index < 0 || index >= radio.elements.length) return;
+  radio.activeElementIndex = index;
+  renderElementTabs();
+  redrawAll();
+}
+
+function addElement(name) {
+  const radio = getActiveRadio();
+  radio.elements.push(createElement(name || `Element ${radio.elements.length + 1}`));
+  switchToElement(radio.elements.length - 1);
+}
+
+function removeElement(index) {
+  const radio = getActiveRadio();
+  if (radio.elements.length <= 1) return; // Must keep at least one
+  if (!confirm(`Delete element "${radio.elements[index].name}"?`)) return;
+  radio.elements.splice(index, 1);
+  if (radio.activeElementIndex >= radio.elements.length) {
+    radio.activeElementIndex = radio.elements.length - 1;
+  }
+  renderElementTabs();
+  redrawAll();
+}
+
+function renameElement(index, newName) {
+  const radio = getActiveRadio();
+  if (index >= 0 && index < radio.elements.length) {
+    radio.elements[index].name = newName;
+    renderElementTabs();
+  }
+}
+
+// Rebuild the element tab strip (under the Edit Antenna label). Reflects the
+// active radio's element list; switching an element updates all plane charts.
+// Uses querySelectorAll so it stays correct regardless of how many bars exist.
+function renderElementTabs() {
+  const bars = document.querySelectorAll(".element-tab-bar");
+  if (!bars.length) return;
+
+  const radio = getActiveRadio();
+
+  bars.forEach((container) => {
+    container.innerHTML = "";
+
+    radio.elements.forEach((element, i) => {
+      const tab = document.createElement("button");
+      tab.className =
+        "element-tab" + (i === radio.activeElementIndex ? " active" : "");
+      tab.textContent = element.name;
+      tab.addEventListener("click", () => switchToElement(i));
+
+      // Double-click to rename
+      tab.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "element-tab-input";
+        input.value = element.name;
+        tab.textContent = "";
+        tab.appendChild(input);
+        input.focus();
+        input.select();
+
+        function finishRename() {
+          const val = input.value.trim();
+          if (val) renameElement(i, val);
+          else renderElementTabs();
+        }
+        input.addEventListener("blur", finishRename);
+        input.addEventListener("keydown", (ke) => {
+          if (ke.key === "Enter") input.blur();
+          if (ke.key === "Escape") {
+            input.value = element.name;
+            input.blur();
+          }
+        });
+      });
+
+      // Right-click to remove
+      tab.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (radio.elements.length > 1) {
+          removeElement(i);
+        }
+      });
+
+      container.appendChild(tab);
+    });
+
+    // Add button
+    const addBtn = document.createElement("button");
+    addBtn.className = "element-tab element-tab-add";
+    addBtn.textContent = "+";
+    addBtn.title = "Add an antenna element";
+    addBtn.addEventListener("click", () => showAddElementPrompt());
+    container.appendChild(addBtn);
+  });
+}
+
+function showAddElementPrompt() {
+  const radio = getActiveRadio();
+  const name = prompt(
+    "Enter element name:",
+    `Element ${radio.elements.length + 1}`,
+  );
+  if (name && name.trim()) {
+    addElement(name.trim());
+  }
+}
+
 // Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
   initializeEventListeners();
   renderRadioTabs();
+  renderElementTabs();
   loadDefaultAntennaData();
   resizeCanvas3D();
 });
@@ -1003,11 +1136,11 @@ function initializeEventListeners() {
   document.getElementById("min-gain").addEventListener("input", (e) => {
     const newMin = parseInt(e.target.value);
     // Ensure min doesn't exceed max
-    if (newMin >= getAntennaData().maxGain) {
-      e.target.value = getAntennaData().maxGain - 5;
+    if (newMin >= getActiveRadio().maxGain) {
+      e.target.value = getActiveRadio().maxGain - 5;
       return;
     }
-    getAntennaData().minGain = newMin;
+    getActiveRadio().minGain = newMin;
     document.getElementById("min-gain-value").textContent = newMin + " dB";
     redrawAll();
   });
@@ -1016,11 +1149,11 @@ function initializeEventListeners() {
   document.getElementById("max-gain").addEventListener("input", (e) => {
     const newMax = parseInt(e.target.value);
     // Ensure max doesn't go below min
-    if (newMax <= getAntennaData().minGain) {
-      e.target.value = getAntennaData().minGain + 5;
+    if (newMax <= getActiveRadio().minGain) {
+      e.target.value = getActiveRadio().minGain + 5;
       return;
     }
-    getAntennaData().maxGain = newMax;
+    getActiveRadio().maxGain = newMax;
     document.getElementById("max-gain-value").textContent = newMax + " dB";
     redrawAll();
   });
@@ -1319,6 +1452,7 @@ function swapPatterns(plane1, plane2) {
 
 // Delete a pattern from a plane
 function deletePattern(plane) {
+  if (!confirm("Delete antenna pattern?")) return;
   const dataKey = planeToDataKey(plane);
   getAntennaData()[dataKey] = [];
   getPlaneVisibility()[dataKey] = false;
@@ -1413,8 +1547,8 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, width, height);
 
-  const minGain = getAntennaData().minGain;
-  const maxGain = getAntennaData().maxGain;
+  const minGain = getActiveRadio().minGain;
+  const maxGain = getActiveRadio().maxGain;
   const gainRange = maxGain - minGain;
 
   // Draw gain circles
@@ -1969,8 +2103,9 @@ function redraw3D() {
 
   const ad = getAntennaData();
   const pv = getPlaneVisibility();
-  const minGain = ad.minGain;
-  const maxGain = ad.maxGain;
+  const radio = getActiveRadio();
+  const minGain = radio.minGain;
+  const maxGain = radio.maxGain;
   const gainRange = maxGain - minGain;
 
   // Helper to convert gain to radius (0 to 1)
@@ -2287,6 +2422,7 @@ function importAntennaFile(text) {
     // Multi-radio format
     const importedRadios = [];
     let currentRadio = null;
+    let currentElement = null;
     let currentPlane = null;
     let currentLines = [];
 
@@ -2300,7 +2436,14 @@ function importAntennaFile(text) {
           data = convertLegacyElevationAngles(data);
         }
         if (data.length > 0) {
-          currentRadio.antennaData[currentPlane] = data;
+          // Files without "### Element:" headers put plane blocks directly
+          // under the radio — treat them as a single implicit element.
+          if (!currentElement) {
+            currentElement = createElement("Element 1");
+            currentRadio.elements.push(currentElement);
+          }
+          currentElement[currentPlane] = data;
+          // Visibility is shared per radio; enable if any element has data.
           currentRadio.planeVisibility[currentPlane] = true;
         }
       }
@@ -2316,28 +2459,30 @@ function importAntennaFile(text) {
         flushPlane();
         section = "properties";
         currentRadio = null;
+        currentElement = null;
       } else if (line.startsWith("## Radio:")) {
         flushPlane();
         section = "radio";
         const radioName = line.slice("## Radio:".length).trim();
         currentRadio = createRadio(radioName);
+        currentRadio.elements = []; // populated from headers / lazily
+        currentElement = null;
         importedRadios.push(currentRadio);
-      } else if (
-        line.startsWith("### Azimuth") ||
-        line.startsWith("## Azimuth")
-      ) {
+      } else if (/^#{2,4}\s*Element:/.test(line)) {
+        flushPlane();
+        const elName = line.replace(/^#{2,4}\s*Element:\s*/, "").trim();
+        currentElement = createElement(
+          elName ||
+            `Element ${currentRadio ? currentRadio.elements.length + 1 : 1}`,
+        );
+        if (currentRadio) currentRadio.elements.push(currentElement);
+      } else if (/^#{2,4}\s*Azimuth/.test(line)) {
         flushPlane();
         currentPlane = "azimuth";
-      } else if (
-        line.startsWith("### Elevation XZ") ||
-        line.startsWith("## Elevation XZ")
-      ) {
+      } else if (/^#{2,4}\s*Elevation XZ/.test(line)) {
         flushPlane();
         currentPlane = "elevationXZ";
-      } else if (
-        line.startsWith("### Elevation YZ") ||
-        line.startsWith("## Elevation YZ")
-      ) {
+      } else if (/^#{2,4}\s*Elevation YZ/.test(line)) {
         flushPlane();
         currentPlane = "elevationYZ";
       } else if (line.startsWith("#")) {
@@ -2356,15 +2501,23 @@ function importAntennaFile(text) {
         }
       } else if (currentRadio && line.startsWith("Min Gain,")) {
         const val = parseFloat(line.split(",")[1]);
-        if (!isNaN(val)) currentRadio.antennaData.minGain = val;
+        if (!isNaN(val)) currentRadio.minGain = val;
       } else if (currentRadio && line.startsWith("Max Gain,")) {
         const val = parseFloat(line.split(",")[1]);
-        if (!isNaN(val)) currentRadio.antennaData.maxGain = val;
+        if (!isNaN(val)) currentRadio.maxGain = val;
       } else if (currentPlane) {
         currentLines.push(line);
       }
     }
     flushPlane();
+
+    // Every radio must have at least one element
+    for (const r of importedRadios) {
+      if (r.elements.length === 0) {
+        r.elements.push(createElement("Element 1"));
+      }
+      r.activeElementIndex = 0;
+    }
 
     // Replace radios array
     if (importedRadios.length > 0) {
@@ -2372,6 +2525,7 @@ function importAntennaFile(text) {
       importedRadios.forEach((r) => radios.push(r));
       activeRadioIndex = 0;
       renderRadioTabs();
+      renderElementTabs();
     }
   } else {
     // Legacy single-radio format — import into active radio
@@ -2471,6 +2625,7 @@ function importAntennaFile(text) {
     if (r) r.checked = true;
   }
 
+  renderElementTabs();
   syncUIToActiveRadio();
   redrawAll();
 }
@@ -2491,34 +2646,48 @@ function exportData() {
   output += `Formfactor,${modelName}\n`;
   output += `Logo Position,${apModel.logoPosition}\n`;
 
+  // Serialize one element's plane blocks. `prefix` is the header level
+  // ("###" for single-element radios, "####" when nested under an element).
+  function writeElementPlanes(el, prefix) {
+    let out = "";
+    if (el.azimuth.length > 0) {
+      out += `\n${prefix} Azimuth (XY Plane)\n`;
+      out += "Angle,Gain(dBi)\n";
+      for (const point of el.azimuth) {
+        out += `${point.angle},${point.gain.toFixed(2)}\n`;
+      }
+    }
+    if (el.elevationXZ.length > 0) {
+      out += `\n${prefix} Elevation XZ Plane\n`;
+      out += "Angle,Gain(dBi)\n";
+      for (const point of el.elevationXZ) {
+        out += `${point.angle},${point.gain.toFixed(2)}\n`;
+      }
+    }
+    if (el.elevationYZ.length > 0) {
+      out += `\n${prefix} Elevation YZ Plane\n`;
+      out += "Angle,Gain(dBi)\n";
+      for (const point of el.elevationYZ) {
+        out += `${point.angle},${point.gain.toFixed(2)}\n`;
+      }
+    }
+    return out;
+  }
+
   // Export each radio
   for (const radio of radios) {
-    const ad = radio.antennaData;
     output += `\n## Radio: ${radio.name}\n`;
-    output += `Min Gain,${ad.minGain}\n`;
-    output += `Max Gain,${ad.maxGain}\n`;
+    output += `Min Gain,${radio.minGain}\n`;
+    output += `Max Gain,${radio.maxGain}\n`;
 
-    if (ad.azimuth.length > 0) {
-      output += "\n### Azimuth (XY Plane)\n";
-      output += "Angle,Gain(dBi)\n";
-      for (const point of ad.azimuth) {
-        output += `${point.angle},${point.gain.toFixed(2)}\n`;
-      }
-    }
-
-    if (ad.elevationXZ.length > 0) {
-      output += "\n### Elevation XZ Plane\n";
-      output += "Angle,Gain(dBi)\n";
-      for (const point of ad.elevationXZ) {
-        output += `${point.angle},${point.gain.toFixed(2)}\n`;
-      }
-    }
-
-    if (ad.elevationYZ.length > 0) {
-      output += "\n### Elevation YZ Plane\n";
-      output += "Angle,Gain(dBi)\n";
-      for (const point of ad.elevationYZ) {
-        output += `${point.angle},${point.gain.toFixed(2)}\n`;
+    if (radio.elements.length <= 1) {
+      // Single element: keep the original layout (plane blocks under the radio)
+      output += writeElementPlanes(radio.elements[0], "###");
+    } else {
+      // Multiple elements: nest each under an "### Element:" header
+      for (const el of radio.elements) {
+        output += `\n### Element: ${el.name}\n`;
+        output += writeElementPlanes(el, "####");
       }
     }
   }
