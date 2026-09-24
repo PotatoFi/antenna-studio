@@ -645,6 +645,7 @@ function addRadio(name) {
 
 function removeRadio(index) {
   if (radios.length <= 1) return; // Must keep at least one
+  if (!confirm(`Delete radio "${radios[index].name}"?`)) return;
   radios.splice(index, 1);
   if (activeRadioIndex >= radios.length) {
     activeRadioIndex = radios.length - 1;
@@ -748,6 +749,7 @@ function addElement(name) {
 function removeElement(index) {
   const radio = getActiveRadio();
   if (radio.elements.length <= 1) return; // Must keep at least one
+  if (!confirm(`Delete element "${radio.elements[index].name}"?`)) return;
   radio.elements.splice(index, 1);
   if (radio.activeElementIndex >= radio.elements.length) {
     radio.activeElementIndex = radio.elements.length - 1;
@@ -1450,6 +1452,7 @@ function swapPatterns(plane1, plane2) {
 
 // Delete a pattern from a plane
 function deletePattern(plane) {
+  if (!confirm("Delete antenna pattern?")) return;
   const dataKey = planeToDataKey(plane);
   getAntennaData()[dataKey] = [];
   getPlaneVisibility()[dataKey] = false;
