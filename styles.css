@@ -121,6 +121,73 @@ body {
     color: var(--text);
 }
 
+/* Antenna element tabs — per plane section, styled like the radio tabs but
+   smaller and inline within the edit pane. */
+.element-tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin: 8px 0 0;
+    flex-wrap: wrap;
+}
+
+.element-tab {
+    padding: 3px 10px;
+    border: none;
+    border-radius: 4px;
+    background: var(--foreground);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--header);
+    cursor: pointer;
+    transition:
+        background-color 0.1s,
+        color 0.1s;
+    white-space: nowrap;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+}
+
+.element-tab:hover {
+    background-color: var(--background);
+    color: var(--text);
+}
+
+.element-tab:active {
+    transform: translateY(1px);
+}
+
+.element-tab.active {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+}
+
+.element-tab-add {
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--header);
+    padding: 3px 8px;
+    line-height: 1;
+}
+
+.element-tab-add:hover {
+    color: var(--button-bg);
+    background-color: var(--background);
+}
+
+.element-tab-input {
+    border: 1px solid var(--button-bg);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 12px;
+    padding: 1px 5px;
+    width: 70px;
+    outline: none;
+    background: var(--background);
+    color: var(--text);
+}
+
 /* Right Pane - pushes canvas */
 .right-pane {
     display: none;
@@ -150,13 +217,16 @@ body {
     display: flex;
 }
 
-.pane-content > h3 {
+.edit-pane-header {
+    margin-bottom: 4px;
+}
+
+.pane-content > h3,
+.edit-pane-header > h3 {
     margin: 0;
     font-size: 16px;
     color: var(--text);
     font-weight: 700;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--foreground);
 }
 
 /* Left Toolbar */
