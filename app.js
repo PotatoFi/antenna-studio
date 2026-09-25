@@ -1861,6 +1861,28 @@ function redraw3D() {
       const gridSize = 2.0;
       const gridSteps = 8;
 
+      // Base corners (shared by the top-face fill and the outline stroke)
+      const corners = [
+        projectWorldToScreen(-gridSize, -gridSize, groundZ),
+        projectWorldToScreen(gridSize, -gridSize, groundZ),
+        projectWorldToScreen(gridSize, gridSize, groundZ),
+        projectWorldToScreen(-gridSize, gridSize, groundZ),
+      ];
+
+      // Fill a light grey top-facing surface only when the camera looks down
+      // onto the plane's top face (normal +Z toward viewer -> sin(camRotX) < 0).
+      // When looking up from below, leave it transparent to see through the grid.
+      if (Math.sin(camRotX) < 0) {
+        ctx.fillStyle = "rgba(210, 210, 210, 0.18)";
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let i = 1; i < 4; i++) {
+          ctx.lineTo(corners[i].x, corners[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
       ctx.strokeStyle = "#ddd";
       ctx.lineWidth = 1;
 
@@ -1884,15 +1906,9 @@ function redraw3D() {
         ctx.stroke();
       }
 
-      // Draw ground plane outline
+      // Draw ground plane outline (reuses the corners computed above)
       ctx.strokeStyle = "#bbb";
       ctx.lineWidth = 2;
-      const corners = [
-        projectWorldToScreen(-gridSize, -gridSize, groundZ),
-        projectWorldToScreen(gridSize, -gridSize, groundZ),
-        projectWorldToScreen(gridSize, gridSize, groundZ),
-        projectWorldToScreen(-gridSize, gridSize, groundZ),
-      ];
       ctx.beginPath();
       ctx.moveTo(corners[0].x, corners[0].y);
       for (let i = 1; i < 4; i++) {
