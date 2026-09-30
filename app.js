@@ -636,6 +636,8 @@ function syncUIToActiveRadio() {
   if (azCheck) azCheck.checked = pv.azimuth;
   if (xzCheck) xzCheck.checked = pv.elevationXZ;
   if (yzCheck) yzCheck.checked = pv.elevationYZ;
+
+  resetReorientControls();
 }
 
 function addRadio(name) {
@@ -737,6 +739,7 @@ function switchToElement(index) {
   if (index < 0 || index >= radio.elements.length) return;
   radio.activeElementIndex = index;
   renderElementTabs();
+  resetReorientControls();
   redrawAll();
 }
 
@@ -1065,6 +1068,29 @@ function initializeEventListeners() {
     });
   });
 
+  // Reorient controls (act on the active element of the active radio)
+  const reorientFrom = document.getElementById("reorient-from");
+  const reorientTo = document.getElementById("reorient-to");
+  const reorientApply = document.getElementById("reorient-apply");
+  if (reorientFrom && reorientTo && reorientApply) {
+    reorientFrom.addEventListener("change", (e) => {
+      rebuildReorientToOptions(e.target.value);
+      updateReorientApplyState();
+    });
+
+    reorientTo.addEventListener("change", updateReorientApplyState);
+
+    reorientApply.addEventListener("click", () => {
+      const from = reorientFrom.value;
+      const to = reorientTo.value;
+      if (!from || !to) return;
+      reorientElement(from, to);
+      // Clear the selection so a second reorientation is a deliberate act
+      // rather than a stale From axis.
+      resetReorientControls();
+    });
+  }
+
   // 3D controls
   document
     .getElementById("show-ground-plane")
@@ -1293,6 +1319,21 @@ function planeToDataKey(plane) {
   }
 }
 
+// Inverse of planeToDataKey: data key -> the DOM string used in element ids
+// (e.g. #show-elevation-xz) and data-plane attributes.
+function dataKeyToPlane(dataKey) {
+  switch (dataKey) {
+    case "azimuth":
+      return "azimuth";
+    case "elevationXZ":
+      return "elevation-xz";
+    case "elevationYZ":
+      return "elevation-yz";
+    default:
+      return dataKey;
+  }
+}
+
 // Resize 3D canvas to fill its container
 function resizeCanvas3D() {
   const canvas = document.getElementById("canvas-3d");
@@ -1370,6 +1411,22 @@ function pastePatternFromClipboard(plane, csvText, gainOnly = false) {
   }
 }
 
+// Apply an affine angle map to a pattern: newAngle = norm(scale * angle + offset).
+// Every pattern transform funnels through here so the 0-360 / sorted-by-angle
+// invariants live in exactly one place. Gains are carried across untouched, so
+// the original (possibly non-uniform) sample spacing survives.
+function remapAngles(data, scale, offset) {
+  if (!data || data.length === 0) return [];
+
+  const remapped = data.map((point) => {
+    const newAngle = (((scale * point.angle + offset) % 360) + 360) % 360;
+    return { angle: newAngle, gain: point.gain };
+  });
+
+  remapped.sort((a, b) => a.angle - b.angle);
+  return remapped;
+}
+
 // Rotate a pattern by 90 degrees
 function rotatePattern(plane, direction, degrees = 90) {
   const dataKey = planeToDataKey(plane);
@@ -1377,25 +1434,9 @@ function rotatePattern(plane, direction, degrees = 90) {
   const data = ad[dataKey];
   if (!data || data.length === 0) return;
 
-  // Calculate rotation amount
   const rotationAmount = direction === "cw" ? degrees : -degrees;
+  ad[dataKey] = remapAngles(data, 1, rotationAmount);
 
-  // Rotate all angles
-  const rotatedData = data.map((point) => {
-    let newAngle = point.angle + rotationAmount;
-    // Normalize to 0-360 range
-    while (newAngle < 0) newAngle += 360;
-    while (newAngle >= 360) newAngle -= 360;
-    return { angle: newAngle, gain: point.gain };
-  });
-
-  // Sort by angle
-  rotatedData.sort((a, b) => a.angle - b.angle);
-
-  // Update the data
-  ad[dataKey] = rotatedData;
-
-  // Redraw
   redrawAll();
 }
 
@@ -1410,18 +1451,7 @@ function flipPattern(plane, axis) {
   const data = ad[dataKey];
   if (!data || data.length === 0) return;
 
-  const flippedData = data.map((point) => {
-    let newAngle;
-    if (axis === "first") {
-      newAngle = (360 - point.angle) % 360;
-    } else {
-      newAngle = (((180 - point.angle) % 360) + 360) % 360;
-    }
-    return { angle: newAngle, gain: point.gain };
-  });
-
-  flippedData.sort((a, b) => a.angle - b.angle);
-  ad[dataKey] = flippedData;
+  ad[dataKey] = remapAngles(data, -1, axis === "first" ? 0 : 180);
   redrawAll();
 }
 
@@ -1462,6 +1492,228 @@ function deletePattern(plane) {
   if (checkbox) checkbox.checked = false;
 
   redrawAll();
+}
+
+// --- Reorient the whole antenna element ---
+//
+// A reorientation from one signed axis to another is a rigid rotation R of the
+// antenna, so the new gain function is G'(d) = G(R-inverse d). For axis-to-axis
+// moves R is a 90 degree rotation, which makes it a signed permutation matrix:
+// it maps each coordinate plane onto another coordinate plane. Every new
+// principal-plane cut is therefore just some old cut, re-indexed -- no
+// interpolation and no resampling.
+
+// Signed unit axes, keyed by the values used by the #reorient-from/-to options.
+const AXIS_DIRECTIONS = {
+  "x+": [1, 0, 0],
+  "x-": [-1, 0, 0],
+  "y+": [0, 1, 0],
+  "y-": [0, -1, 0],
+  "z+": [0, 0, 1],
+  "z-": [0, 0, -1],
+};
+
+// Each stored plane is parameterized as dir(t) = cos(t)*e1 + sin(t)*e2. These
+// must match the render math in redraw3D(): azimuth (t=0 -> +X, t=90 -> +Y),
+// elevationXZ (t=0 -> +Z, t=90 -> +X), elevationYZ (t=0 -> +Z, t=90 -> +Y).
+const PLANE_BASES = {
+  azimuth: { e1: [1, 0, 0], e2: [0, 1, 0] }, // "Draw Azimuth pattern" in redraw3D()
+  elevationXZ: { e1: [0, 0, 1], e2: [1, 0, 0] }, // "Draw Elevation XZ pattern"
+  elevationYZ: { e1: [0, 0, 1], e2: [0, 1, 0] }, // "Draw Elevation YZ pattern"
+};
+
+function cross3(a, b) {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+function dot3(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+// 90 degree rotation about a signed unit axis, as an integer 3x3 matrix
+// (row-major). Rodrigues at 90 degrees collapses to R = I + K + K*K, where K is
+// the skew-symmetric matrix of the axis.
+function rotation90(axis) {
+  const [x, y, z] = axis;
+  const K = [
+    [0, -z, y],
+    [z, 0, -x],
+    [-y, x, 0],
+  ];
+  const R = [];
+  for (let i = 0; i < 3; i++) {
+    R.push([]);
+    for (let j = 0; j < 3; j++) {
+      let kk = 0;
+      for (let k = 0; k < 3; k++) kk += K[i][k] * K[k][j];
+      R[i].push((i === j ? 1 : 0) + K[i][j] + kk);
+    }
+  }
+  return R;
+}
+
+// Multiply a row-major 3x3 by a column vector.
+function applyMatrix3(M, v) {
+  return [dot3(M[0], v), dot3(M[1], v), dot3(M[2], v)];
+}
+
+// Which coordinate plane do two signed unit axes span? Matches on axis indices
+// as a set, so it always resolves to exactly one of the three stored planes.
+function planeKeyForAxes(a1, a2) {
+  const indices = new Set();
+  for (const v of [a1, a2]) {
+    for (let i = 0; i < 3; i++) if (v[i] !== 0) indices.add(i);
+  }
+  for (const key of Object.keys(PLANE_BASES)) {
+    const basis = PLANE_BASES[key];
+    const basisIndices = new Set();
+    for (const v of [basis.e1, basis.e2]) {
+      for (let i = 0; i < 3; i++) if (v[i] !== 0) basisIndices.add(i);
+    }
+    if (
+      basisIndices.size === indices.size &&
+      [...indices].every((i) => basisIndices.has(i))
+    ) {
+      return key;
+    }
+  }
+  return null;
+}
+
+// Rewrite all three plane arrays of the active element so its pattern points
+// from `fromKey` to `toKey` (both keys of AXIS_DIRECTIONS).
+function reorientElement(fromKey, toKey) {
+  const from = AXIS_DIRECTIONS[fromKey];
+  const to = AXIS_DIRECTIONS[toKey];
+  if (!from || !to) return;
+
+  // Same axis is a no-op; opposite axes leave the roll about the axis
+  // underdetermined. The UI never offers either, this is the guard.
+  if (dot3(from, to) !== 0) return;
+
+  const axis = cross3(from, to);
+  const R = rotation90(axis);
+  // R is orthogonal, so R-inverse is its transpose.
+  const Rinv = [
+    [R[0][0], R[1][0], R[2][0]],
+    [R[0][1], R[1][1], R[2][1]],
+    [R[0][2], R[1][2], R[2][2]],
+  ];
+
+  const ad = getAntennaData();
+  // Read every source array before writing anything: the planes get shuffled,
+  // so assigning in place would clobber a source another target still needs.
+  const sources = {
+    azimuth: ad.azimuth,
+    elevationXZ: ad.elevationXZ,
+    elevationYZ: ad.elevationYZ,
+  };
+
+  const results = {};
+  for (const targetKey of Object.keys(PLANE_BASES)) {
+    const target = PLANE_BASES[targetKey];
+    // Pull the target basis back through the rotation. Both results are signed
+    // unit axes and orthogonal, so together they span one coordinate plane.
+    const a1 = applyMatrix3(Rinv, target.e1);
+    const a2 = applyMatrix3(Rinv, target.e2);
+
+    const sourceKey = planeKeyForAxes(a1, a2);
+    if (!sourceKey) continue;
+    const source = PLANE_BASES[sourceKey];
+
+    // Every dot product below is exactly 0 or +/-1.
+    const c1 = dot3(a1, source.e1);
+    const s1 = dot3(a1, source.e2);
+    const c2 = dot3(a2, source.e1);
+    const s2 = dot3(a2, source.e2);
+
+    // The source parameter is t' = sign*t + offsetDeg, where offsetDeg is an
+    // exact multiple of 90 and sign is the determinant (+1 rotation,
+    // -1 reflection). Inverting that to push each stored sample forward, a
+    // sample at old angle a lands at new angle sign*(a - offsetDeg).
+    const offsetDeg = Math.round((Math.atan2(s1, c1) * 180) / Math.PI);
+    const sign = c1 * s2 - c2 * s1;
+
+    results[targetKey] = remapAngles(sources[sourceKey], sign, -sign * offsetDeg);
+  }
+
+  for (const key of Object.keys(results)) {
+    ad[key] = results[key];
+  }
+
+  // Reveal any plane that now holds data, but never hide one: planeVisibility
+  // is radio-level and shared by every element of the radio, so clearing a flag
+  // would affect this element's siblings.
+  const pv = getPlaneVisibility();
+  for (const key of Object.keys(results)) {
+    if (results[key].length === 0) continue;
+    pv[key] = true;
+    const checkbox = document.getElementById(`show-${dataKeyToPlane(key)}`);
+    if (checkbox) checkbox.checked = true;
+  }
+
+  redrawAll();
+}
+
+// Human labels for the reorient dropdowns, in menu order.
+const AXIS_LABELS = {
+  "x+": "X+",
+  "x-": "X\u2212",
+  "y+": "Y+",
+  "y-": "Y\u2212",
+  "z+": "Z+",
+  "z-": "Z\u2212",
+};
+
+// Rebuild the To menu for the given From axis, offering only the four
+// perpendicular axes: the same axis is a no-op and the opposite one leaves the
+// roll about the axis underdetermined.
+function rebuildReorientToOptions(fromKey) {
+  const toSelect = document.getElementById("reorient-to");
+  if (!toSelect) return;
+
+  toSelect.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "To\u2026";
+  toSelect.appendChild(placeholder);
+
+  const from = AXIS_DIRECTIONS[fromKey];
+  if (from) {
+    for (const key of Object.keys(AXIS_DIRECTIONS)) {
+      if (dot3(from, AXIS_DIRECTIONS[key]) !== 0) continue;
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = AXIS_LABELS[key];
+      toSelect.appendChild(option);
+    }
+  }
+
+  toSelect.value = "";
+  toSelect.disabled = !from;
+}
+
+// Apply is live only once both axes are chosen.
+function updateReorientApplyState() {
+  const fromSelect = document.getElementById("reorient-from");
+  const toSelect = document.getElementById("reorient-to");
+  const applyBtn = document.getElementById("reorient-apply");
+  if (!fromSelect || !toSelect || !applyBtn) return;
+  applyBtn.disabled = !fromSelect.value || !toSelect.value;
+}
+
+// Return the control to its untouched state. Called after a successful apply
+// and whenever the active element or radio changes, so the widget never shows a
+// selection that belongs to something else.
+function resetReorientControls() {
+  const fromSelect = document.getElementById("reorient-from");
+  if (fromSelect) fromSelect.value = "";
+  rebuildReorientToOptions("");
+  updateReorientApplyState();
 }
 
 const DEFAULT_AP_CSV_PATH = "ACME_AP72I.csv";
