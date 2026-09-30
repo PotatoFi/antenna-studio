@@ -32,6 +32,34 @@
                         <div class="element-tab-bar"></div>
                     </div>
 
+                    <!-- Reorient the whole active element: pick a From axis and a
+                         To axis, and all three plane arrays are rewritten. -->
+                    <div class="reorient-row">
+                        <span>Reorient</span>
+                        <select id="reorient-from">
+                            <option value="">From&hellip;</option>
+                            <option value="x+">X+</option>
+                            <option value="x-">X&minus;</option>
+                            <option value="y+">Y+</option>
+                            <option value="y-">Y&minus;</option>
+                            <option value="z+">Z+</option>
+                            <option value="z-">Z&minus;</option>
+                        </select>
+                        <span>&rarr;</span>
+                        <!-- Options are built in JS from the From selection,
+                             excluding that axis and its opposite. -->
+                        <select id="reorient-to" disabled>
+                            <option value="">To&hellip;</option>
+                        </select>
+                        <button
+                            id="reorient-apply"
+                            class="toolbar-button blue"
+                            disabled
+                        >
+                            Apply
+                        </button>
+                    </div>
+
                     <hr />
 
                     <!-- Azimuth Pattern -->
