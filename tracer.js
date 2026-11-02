@@ -2,10 +2,10 @@
 //
 // Runs as a full-screen overlay on top of the studio. Everything lives inside
 // this IIFE so the tracer's state (canvas, points, image, ...) can't collide
-// with app.js globals. Exports: openTracer() / closeTracer() for app.js, and
-// the trace image registry for project.js. Results go back through app.js's
-// setPattern(); each plane's tracer state is kept on its element
-// (element.traces) whether or not it was applied.
+// with app.js globals. The only exports are openTracer() / closeTracer().
+// Results go back through app.js's setPattern(); each plane's tracer state,
+// including its image file, is kept on its element (element.traces) whether
+// or not it was applied.
 //
 // Tracer angles put 0° at the top of the image and increase clockwise. The
 // studio's polar charts also put 0° at the top but increase counter-clockwise,
@@ -19,7 +19,6 @@
   const canvas = document.getElementById("tracer-canvas");
   const ctx = canvas.getContext("2d");
   const imageUpload = document.getElementById("tracer-image-upload");
-  const imageSelect = document.getElementById("tracer-image-select");
   const innerGainInput = document.getElementById("tracer-inner-gain");
   const outerGainInput = document.getElementById("tracer-outer-gain");
   const applyBtn = document.getElementById("tracer-apply");
@@ -615,7 +614,7 @@
   imageUpload.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    loadImageFile(file);
+    setImage(file, file.name);
     e.target.value = "";
   });
 
@@ -630,7 +629,7 @@
     e.preventDefault();
     e.stopPropagation();
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) loadImageFile(file);
+    if (file && file.type.startsWith("image/")) setImage(file, file.name);
   });
 
   function getMousePos(e) {
@@ -1064,92 +1063,46 @@
     draw();
   }
 
-  // --- Trace images ---
+  // --- Trace image ---
   //
-  // Every image loaded into the tracer is kept here for the session, so any
-  // plane can reuse it ("Use image" menu) and project.js can save the
-  // original bytes. Traces refer to images by id.
-  // id -> { fileName, blob, image (HTMLImageElement, decoded) }
-  const traceImages = new Map();
-  let nextImageId = 1;
-  let imageId = null; // id of the image shown in the tracer, or null
+  // Each trace owns its image: the original file is kept as a Blob (so
+  // project.js can save its bytes) and decoded into `image` for drawing.
+  let imageBlob = null;
 
-  // Add an image blob to the registry. Resolves with its id once decoded.
-  // `id` is given when restoring a project, so saved references stay valid.
-  function addTraceImage(blob, fileName, id) {
-    if (!id) {
-      id = `img${nextImageId++}`;
-    } else {
-      const n = parseInt(id.replace(/^img/, ""), 10);
-      if (n >= nextImageId) nextImageId = n + 1;
-    }
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        traceImages.set(id, { fileName, blob, image: img });
-        resolve(id);
-      };
-      img.onerror = () => reject(new Error(`Could not decode ${fileName}`));
-      img.src = URL.createObjectURL(blob);
-    });
-  }
-
-  // Drop every image (when a project is opened). Ids restart; restored images
-  // keep their saved ids and addTraceImage() moves the counter past them.
-  function resetTraceImages() {
-    for (const { image: img } of traceImages.values()) {
-      URL.revokeObjectURL(img.src);
-    }
-    traceImages.clear();
-    nextImageId = 1;
-  }
-
-  function showImage(id) {
-    const entry = traceImages.get(id);
-    imageId = entry ? id : null;
-    image = entry ? entry.image : null;
-    imageFileName = entry ? entry.fileName : null;
-    imageSelect.value = imageId || "";
+  // Show `blob`, or no image when null. Decoding is async; if the image
+  // changed in the meantime, the stale result is dropped.
+  function setImage(blob, fileName) {
+    imageBlob = blob;
+    imageFileName = blob ? fileName : null;
+    image = null;
     draw();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (imageBlob !== blob) return;
+      image = img;
+      draw();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      if (imageBlob !== blob) return;
+      setImage(null);
+      alert(`Could not load image ${fileName}`);
+    };
+    img.src = url;
   }
-
-  // Rebuild the "Use image" menu from the registry
-  function renderImageSelect() {
-    imageSelect.innerHTML = "";
-    const none = document.createElement("option");
-    none.value = "";
-    none.textContent = traceImages.size ? "Choose…" : "No images yet";
-    imageSelect.appendChild(none);
-    for (const [id, { fileName }] of traceImages) {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = fileName;
-      imageSelect.appendChild(option);
-    }
-    imageSelect.value = imageId || "";
-    imageSelect.disabled = traceImages.size === 0;
-  }
-
-  function loadImageFile(file) {
-    addTraceImage(file, file.name).then(
-      (id) => {
-        renderImageSelect();
-        showImage(id);
-      },
-      (err) => alert(err.message),
-    );
-  }
-
-  imageSelect.addEventListener("change", (e) => showImage(e.target.value));
 
   // --- Trace state ---
   //
   // A trace is everything needed to reopen a plane's tracer as it was left:
-  // image placement, reference circles and gains, resolution, interpolation and
-  // all points. Stored per plane on the element (element.traces[dataKey]).
+  // the image file and its placement, reference circles and gains, resolution,
+  // interpolation and all points. Stored per plane on the element (element.traces[dataKey]).
 
   const DEFAULT_TRACE = {
-    imageId: null,
+    imageBlob: null,
+    imageFileName: null,
     imageX: CANVAS_SIZE / 2,
     imageY: CANVAS_SIZE / 2,
     imageScale: 100,
@@ -1164,7 +1117,8 @@
 
   function getTracerState() {
     return {
-      imageId,
+      imageBlob,
+      imageFileName,
       imageX,
       imageY,
       imageScale: parseInt(scaleSlider.value),
@@ -1226,8 +1180,7 @@
       initializePoints();
     }
 
-    renderImageSelect();
-    showImage(state.imageId);
+    setImage(state.imageBlob, state.imageFileName);
   }
 
   // --- Open / close ---
@@ -1252,7 +1205,7 @@
   // A plane with no image has nothing worth keeping, so its trace is dropped.
   function closeTracer() {
     if (targetElement) {
-      if (imageId) {
+      if (imageBlob) {
         targetElement.traces[targetDataKey] = getTracerState();
       } else {
         delete targetElement.traces[targetDataKey];
@@ -1282,8 +1235,4 @@
 
   window.openTracer = openTracer;
   window.closeTracer = closeTracer;
-  // For project.js
-  window.traceImages = traceImages;
-  window.addTraceImage = addTraceImage;
-  window.resetTraceImages = resetTraceImages;
 })();

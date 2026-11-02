@@ -195,42 +195,42 @@ const PROJECT_VIEW_KEYS = [
   "roll",
 ];
 
-// Build project.json. Only images referenced by a trace are listed (and
-// saved), so images loaded but never kept don't bloat the file.
+// Build project.json, plus the trace images to store alongside it. Each
+// trace's image is written to its own path (radio, element and plane in the
+// name keep it unique) and the trace refers to it by that path.
 function serializeProject() {
   const view = {};
   for (const key of PROJECT_VIEW_KEYS) view[key] = view3D[key];
   view.showGroundPlane = document.getElementById("show-ground-plane").checked;
 
-  const images = {};
-  const serializedRadios = radios.map((radio) => ({
+  const imageFiles = [];
+  const serializedRadios = radios.map((radio, r) => ({
     name: radio.name,
     minGain: radio.minGain,
     maxGain: radio.maxGain,
     planeVisibility: { ...radio.planeVisibility },
     activeElementIndex: radio.activeElementIndex,
-    elements: radio.elements.map((el) => {
-      for (const trace of Object.values(el.traces)) {
-        const entry = traceImages.get(trace.imageId);
-        if (entry && !images[trace.imageId]) {
-          const safeName = entry.fileName.replace(/[^a-z0-9._\-]/gi, "_");
-          images[trace.imageId] = {
-            path: `images/${trace.imageId}-${safeName}`,
-            fileName: entry.fileName,
-          };
-        }
+    elements: radio.elements.map((el, e) => {
+      const traces = {};
+      for (const [dataKey, trace] of Object.entries(el.traces)) {
+        const { imageBlob, ...rest } = trace;
+        const safeName = trace.imageFileName.replace(/[^a-z0-9._\-]/gi, "_");
+        const path = `images/${r + 1}-${e + 1}-${dataKey}-${safeName}`;
+        imageFiles.push({ path, blob: imageBlob });
+        // imageSize lets the unsaved-changes check notice a replaced image
+        traces[dataKey] = { ...rest, image: path, imageSize: imageBlob.size };
       }
       return {
         name: el.name,
         azimuth: el.azimuth,
         elevationXZ: el.elevationXZ,
         elevationYZ: el.elevationYZ,
-        traces: el.traces,
+        traces,
       };
     }),
   }));
 
-  return {
+  const project = {
     format: PROJECT_FORMAT,
     version: PROJECT_VERSION,
     generator: "Antenna Studio",
@@ -241,14 +241,14 @@ function serializeProject() {
     view,
     activeRadioIndex,
     radios: serializedRadios,
-    images,
   };
+  return { project, imageFiles };
 }
 
 async function saveProject() {
   try {
     const encoder = new TextEncoder();
-    const project = serializeProject();
+    const { project, imageFiles } = serializeProject();
     const files = [
       {
         name: "project.json",
@@ -261,8 +261,7 @@ async function saveProject() {
         compress: true,
       },
     ];
-    for (const [id, { path }] of Object.entries(project.images)) {
-      const blob = traceImages.get(id).blob;
+    for (const { path, blob } of imageFiles) {
       files.push({
         name: path,
         data: new Uint8Array(await blob.arrayBuffer()),
@@ -291,6 +290,28 @@ function cleanPattern(data) {
     .sort((a, b) => a.angle - b.angle);
 }
 
+// Turn saved traces back into live ones: each trace's image path becomes the
+// image Blob. A trace whose image is missing is dropped (the tracer only keeps
+// traces that have an image); its applied pattern is unaffected.
+function restoreTraces(savedTraces, entries) {
+  const traces = {};
+  for (const [dataKey, saved] of Object.entries(savedTraces || {})) {
+    const data = saved && entries.get(saved.image);
+    if (!data) {
+      console.warn(`Trace image ${saved && saved.image} is missing`);
+      continue;
+    }
+    const { image, imageSize, ...rest } = saved;
+    const ext = image.split(".").pop().toLowerCase();
+    traces[dataKey] = {
+      ...rest,
+      imageFileName: saved.imageFileName || image,
+      imageBlob: new Blob([data], { type: IMAGE_TYPES[ext] || "" }),
+    };
+  }
+  return traces;
+}
+
 const IMAGE_TYPES = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -299,9 +320,9 @@ const IMAGE_TYPES = {
   webp: "image/webp",
 };
 
-// Replace all studio state with a project. Everything is validated and the
-// images decoded before any state is touched, so a bad file leaves the
-// current project as it was.
+// Replace all studio state with a project. Everything is read and validated
+// before any state is touched, so a bad file leaves the current project as it
+// was.
 async function openProject(bytes) {
   const entries = await readZip(bytes);
   const json = entries.get("project.json");
@@ -332,7 +353,7 @@ async function openProject(bytes) {
         el.azimuth = cleanPattern(savedEl.azimuth);
         el.elevationXZ = cleanPattern(savedEl.elevationXZ);
         el.elevationYZ = cleanPattern(savedEl.elevationYZ);
-        el.traces = savedEl.traces || {};
+        el.traces = restoreTraces(savedEl.traces, entries);
         return el;
       });
     }
@@ -344,33 +365,7 @@ async function openProject(bytes) {
     return radio;
   });
 
-  // Decode images into blobs first; a missing or broken image only loses that
-  // image (its traces reopen without one), not the whole project.
-  const images = [];
-  for (const [id, { path, fileName }] of Object.entries(project.images || {})) {
-    const data = entries.get(path);
-    if (!data) {
-      console.warn(`Project image ${path} is missing`);
-      continue;
-    }
-    const ext = path.split(".").pop().toLowerCase();
-    images.push({
-      id,
-      fileName: fileName || path,
-      blob: new Blob([data], { type: IMAGE_TYPES[ext] || "" }),
-    });
-  }
-
   // --- Apply ---
-  resetTraceImages();
-  for (const { id, fileName, blob } of images) {
-    try {
-      await addTraceImage(blob, fileName, id);
-    } catch (err) {
-      console.warn(err.message);
-    }
-  }
-
   radios.length = 0;
   newRadios.forEach((r) => radios.push(r));
   const activeIndex = project.activeRadioIndex;
@@ -473,7 +468,7 @@ async function openFile(file) {
 let cleanSnapshot = null;
 
 function projectSnapshot() {
-  const project = serializeProject();
+  const { project } = serializeProject();
   delete project.view.rotationX;
   delete project.view.rotationY;
   delete project.view.zoom;

@@ -93,19 +93,19 @@ Slides in from right, pushing the canvas. Contains the Edit Antenna view with th
 ### Tracer Overlay
 Each plane's Trace button opens a full-screen overlay (`tracer.js`, merged in from the former standalone Antenna Tracer). Load a datasheet image, align it, set the inner/outer reference circles and their gains, and drag control points along the pattern. **Apply to Plane** writes the result via `setPattern(plane, data)` in `app.js` (shared with clipboard paste) to the active radio/element.
 * Tracer angles have 0° at the top of the image, increasing clockwise; studio polar charts have 0° at the top, increasing counter-clockwise. Apply mirrors angles (`(360 − a) mod 360`), so the trace looks the same in the Edit pane chart as on the image. Copy CSV (`C`) keeps raw tracer angles.
-* Each plane keeps its own trace on its element (`element.traces[dataKey]`): image id, placement, circles/gains, resolution, interpolation, and all points. Opening restores it; closing stores it whether or not it was applied. A plane with no image stores nothing. Swap moves traces with their planes; Delete clears the plane's trace; rotate/mirror/reorient leave traces alone (re-applying a trace overwrites the pattern).
-* Images live in a session-wide registry (`traceImages`, id → `{fileName, blob, image}`) so any plane can reuse one via the "Use image" menu. Projects save only images that some trace references.
+* Each plane keeps its own trace on its element (`element.traces[dataKey]`): the image file (`imageBlob`, `imageFileName`) and its placement, circles/gains, resolution, interpolation, and all points. Opening restores it; closing stores it whether or not it was applied. A plane with no image stores nothing. Swap moves traces with their planes; Delete clears the plane's trace; rotate/mirror/reorient leave traces alone (re-applying a trace overwrites the pattern).
+* Each trace owns its image; images are never shared between planes. The Blob is decoded when the plane's tracer opens.
 * While open, the tracer's capture-phase key handlers swallow keys so studio hotkeys don't fire; Esc closes it. Its drag/drop handlers stop propagation so the studio's file-import drop doesn't trigger.
 * Example images are in `examples/tracer/`.
 
 ## Project Format (.antstudio)
 
 The main save format. A ZIP archive containing:
-* `project.json` — authoritative state: `format: "antenna-studio-project"`, `version`, `name`, `apModel`, `antennaOrientation`, `worldOrientation`, `view` (camera, axis/label toggles, display rotations, ground plane), `activeRadioIndex`, `radios` (with elements, patterns and traces), and `images` (id → `{path, fileName}`)
+* `project.json` — authoritative state: `format: "antenna-studio-project"`, `version`, `name`, `apModel`, `antennaOrientation`, `worldOrientation`, `view` (camera, axis/label toggles, display rotations, ground plane), `activeRadioIndex`, and `radios` (with elements, patterns and traces). In the file, each trace's `imageBlob` is replaced by `image` (its path in the archive) and `imageSize`
 * `patterns.csv` — the CSV export below, for use without the app; ignored on open
-* `images/<id>-<name>` — original image bytes, stored uncompressed
+* `images/<radio>-<element>-<plane>-<name>` — each trace's original image bytes, stored uncompressed
 
-Opening validates everything and decodes images before replacing state, so a bad file leaves the current project untouched. Missing fields fall back to defaults; a newer `version` than `PROJECT_VERSION` is refused. Bump `PROJECT_VERSION` when changing the meaning of existing fields.
+Opening reads and validates everything before replacing state, so a bad file leaves the current project untouched. A trace whose image is missing from the archive is dropped. Missing fields fall back to defaults; a newer `version` than `PROJECT_VERSION` is refused. Bump `PROJECT_VERSION` when changing the meaning of existing fields.
 
 Unsaved changes are detected by comparing a serialized snapshot (minus camera angle/zoom) with the one taken at the last save/open; `beforeunload` warns, and opening a file asks first.
 
