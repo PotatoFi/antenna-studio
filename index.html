@@ -430,28 +430,37 @@
                 </div>
             </div>
 
-            <!-- Export -->
-            <!-- Import -->
+            <!-- Open (.antstudio project or CSV) -->
             <button
                 class="button"
                 id="import-btn"
-                title="Import antenna pattern from file"
+                title="Open a project (.antstudio) or import a pattern CSV"
             >
                 <i class="bx bx-folder-open"></i>
             </button>
             <input
                 type="file"
                 id="import-file-input"
-                accept=".csv,.txt"
+                accept=".antstudio,.zip,.csv,.txt"
                 style="display: none"
             />
 
+            <!-- Save project -->
+            <button
+                class="button"
+                id="save-project-btn"
+                title="Save project (.antstudio), including traced images"
+            >
+                <i class="bx bx-save"></i>
+            </button>
+
+            <!-- Export CSV -->
             <button
                 class="button"
                 id="export-btn"
-                title="Download a summary CSV file"
+                title="Export antenna patterns as CSV"
             >
-                <i class="bx bx-save"></i>
+                <i class="bx bx-arrow-out-up-square-half"></i>
             </button>
 
             <!-- Zoom In -->
@@ -467,7 +476,7 @@
 
         <div id="drop-overlay" class="drop-overlay">
             <div class="drop-overlay-message">
-                Drop antenna pattern file to import
+                Drop a project (.antstudio) or pattern CSV to open
             </div>
         </div>
 
@@ -517,6 +526,12 @@
                         id="tracer-image-upload"
                         accept="image/png,image/jpeg"
                     />
+                </div>
+                <!-- Images already loaded this session, so several planes
+                     can be traced from one datasheet image -->
+                <div class="tracer-input-row">
+                    <label for="tracer-image-select">Use image</label>
+                    <select id="tracer-image-select"></select>
                 </div>
                 <div class="tracer-slider">
                     <div class="tracer-slider-label">
@@ -594,13 +609,6 @@
                     </select>
                 </div>
 
-                <h4>Project</h4>
-                <div class="tracer-input-row">
-                    <button class="toolbar-button" id="tracer-save-project">Save Project</button>
-                    <button class="toolbar-button" id="tracer-load-project-btn">Load Project</button>
-                    <input type="file" id="tracer-load-project" accept=".json" style="display: none" />
-                </div>
-
                 <h4>Controls</h4>
                 <ul class="tracer-controls-list">
                     <li><b>Zoom:</b> Hold <span class="kbd">Shift</span>, drag vertically</li>
@@ -628,5 +636,6 @@
 
         <script src="app.js"></script>
         <script src="tracer.js"></script>
+        <script src="project.js"></script>
     </body>
 </html>

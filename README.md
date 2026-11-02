@@ -28,15 +28,21 @@ Antenna Studio supports adding and removing multiple radios (or antenna elements
 
 ## Saving and Loading
 
-Antenna Studio uses a .CSV format that contains all of the attributes for the AP/antenna, including the name, formfactor, default mounting type, and the antenna patterns themselves.
+Antenna Studio saves projects as **.antstudio** files. A project holds everything: all radios and elements, the antenna patterns, name, formfactor, mounting type, orientation and view settings, plus every traced plane's image, reference circles and control points, so tracing can pick up where it left off.
+
+An .antstudio file is a ZIP archive. Rename it to .zip and unzip it to get `project.json`, the traced images, and a `patterns.csv` copy of the patterns.
 
 ### Saving
 
-Click the **Save** button to save out a copy of the current project.
+Click the **Save** button to download the current project as an .antstudio file. If you try to leave or reload the page with unsaved changes, the browser will warn you.
 
-### Loading
+### Opening
 
-Click the **Load** button, or drag and drop an Antenna Studio .CSV from your computer. Loading an Antenna Studio project will instantly replace the current project, so be careful.
+Click the **Open** button, or drag and drop an .antstudio project or an Antenna Studio .CSV onto the window. Opening a file replaces the current project; you'll be asked first if there are unsaved changes.
+
+### CSV Export
+
+Click the **Export CSV** button to download the patterns and AP/antenna attributes (name, formfactor, mounting type) as a .CSV. The CSV doesn't include traced images, orientation, or view settings. CSVs can be opened again with the **Open** button.
 
 ## Edit Pane
 

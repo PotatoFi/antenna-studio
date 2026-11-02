@@ -6,11 +6,12 @@ Antenna Studio is a utility for inputting access point specifications and antenn
 
 ## Technical Details
 
-Pure vanilla HTML, CSS, and JavaScript — no frameworks or build tools. Four files:
+Pure vanilla HTML, CSS, and JavaScript — no frameworks or build tools. Five files, loaded in this order (they share globals as classic scripts):
 * `index.html` — DOM structure (toolbar, edit pane, canvas, radio tab bar, tracer overlay)
 * `styles.css` — all styling
 * `app.js` — all studio logic (~3000 lines)
 * `tracer.js` — the pattern tracer overlay (see below), self-contained in an IIFE
+* `project.js` — .antstudio project save/open (dependency-free ZIP read/write), unsaved-change tracking
 
 Reference style files from sibling projects: `clipboard-style.css`, `spectrum-style.html`. The floating UI style (fixed position, `border-radius: 6px`, `box-shadow`, `var(--panel-bg)`) comes from the clipboard project's `.input-panel` pattern.
 
@@ -19,7 +20,8 @@ Reference style files from sibling projects: `clipboard-style.css`, `spectrum-st
 ### Data Model
 
 **Multi-radio system**: The app supports multiple radio bands (default: 2.4 GHz, 5 GHz, 6 GHz). Each radio is an object with its own:
-* `antennaData` — three pattern arrays (`azimuth`, `elevationXZ`, `elevationYZ`), each containing `{angle, gain}` points, plus `minGain`/`maxGain`
+* `elements` — one or more antenna elements (`activeElementIndex` selects one). Each has three pattern arrays (`azimuth`, `elevationXZ`, `elevationYZ`) of `{angle, gain}` points, plus `traces` (tracer state per plane data key, only for planes traced from an image)
+* `minGain`/`maxGain`
 * `planeVisibility` — per-plane show/hide state
 
 Access the active radio's data via `getAntennaData()` and `getPlaneVisibility()` — never reference a radio's properties directly from UI code.
@@ -80,8 +82,9 @@ Fixed vertical button strip (top-left). Buttons:
 * **Mount** — dropdown: antenna name input + mounting type (ceiling/wall/table)
 * **Model** — dropdown: AP formfactor selection (11 types)
 * **View** — dropdown: axis toggles, ground plane, plane visibility, gain range sliders
-* **Import** — file picker (also supports drag-and-drop)
-* **Export** — downloads CSV
+* **Open** — file picker for .antstudio projects or pattern CSVs (also supports drag-and-drop); `openFile()` in `project.js` detects ZIPs by signature
+* **Save** — downloads the .antstudio project
+* **Export CSV** — downloads the CSV export
 * **Zoom In/Out**
 
 ### Right Pane
@@ -90,11 +93,23 @@ Slides in from right, pushing the canvas. Contains the Edit Antenna view with th
 ### Tracer Overlay
 Each plane's Trace button opens a full-screen overlay (`tracer.js`, merged in from the former standalone Antenna Tracer). Load a datasheet image, align it, set the inner/outer reference circles and their gains, and drag control points along the pattern. **Apply to Plane** writes the result via `setPattern(plane, data)` in `app.js` (shared with clipboard paste) to the active radio/element.
 * Tracer angles have 0° at the top of the image, increasing clockwise; studio polar charts have 0° at the top, increasing counter-clockwise. Apply mirrors angles (`(360 − a) mod 360`), so the trace looks the same in the Edit pane chart as on the image. Copy CSV (`C`) keeps raw tracer angles.
-* Tracer state persists between openings (in memory only); Save/Load Project writes/reads tracer JSON.
+* Each plane keeps its own trace on its element (`element.traces[dataKey]`): image id, placement, circles/gains, resolution, interpolation, and all points. Opening restores it; closing stores it whether or not it was applied. A plane with no image stores nothing. Swap moves traces with their planes; Delete clears the plane's trace; rotate/mirror/reorient leave traces alone (re-applying a trace overwrites the pattern).
+* Images live in a session-wide registry (`traceImages`, id → `{fileName, blob, image}`) so any plane can reuse one via the "Use image" menu. Projects save only images that some trace references.
 * While open, the tracer's capture-phase key handlers swallow keys so studio hotkeys don't fire; Esc closes it. Its drag/drop handlers stop propagation so the studio's file-import drop doesn't trigger.
 * Example images are in `examples/tracer/`.
 
-## Export/Import Format
+## Project Format (.antstudio)
+
+The main save format. A ZIP archive containing:
+* `project.json` — authoritative state: `format: "antenna-studio-project"`, `version`, `name`, `apModel`, `antennaOrientation`, `worldOrientation`, `view` (camera, axis/label toggles, display rotations, ground plane), `activeRadioIndex`, `radios` (with elements, patterns and traces), and `images` (id → `{path, fileName}`)
+* `patterns.csv` — the CSV export below, for use without the app; ignored on open
+* `images/<id>-<name>` — original image bytes, stored uncompressed
+
+Opening validates everything and decodes images before replacing state, so a bad file leaves the current project untouched. Missing fields fall back to defaults; a newer `version` than `PROJECT_VERSION` is refused. Bump `PROJECT_VERSION` when changing the meaning of existing fields.
+
+Unsaved changes are detected by comparing a serialized snapshot (minus camera angle/zoom) with the one taken at the last save/open; `beforeunload` warns, and opening a file asks first.
+
+## CSV Export/Import Format
 
 CSV-like text file with markdown headers. Multi-radio format:
 ```

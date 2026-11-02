@@ -2,8 +2,10 @@
 //
 // Runs as a full-screen overlay on top of the studio. Everything lives inside
 // this IIFE so the tracer's state (canvas, points, image, ...) can't collide
-// with app.js globals. The only exports are openTracer() / closeTracer(); the
-// result is handed back through app.js's setPattern().
+// with app.js globals. Exports: openTracer() / closeTracer() for app.js, and
+// the trace image registry for project.js. Results go back through app.js's
+// setPattern(); each plane's tracer state is kept on its element
+// (element.traces) whether or not it was applied.
 //
 // Tracer angles put 0° at the top of the image and increase clockwise. The
 // studio's polar charts also put 0° at the top but increase counter-clockwise,
@@ -17,6 +19,7 @@
   const canvas = document.getElementById("tracer-canvas");
   const ctx = canvas.getContext("2d");
   const imageUpload = document.getElementById("tracer-image-upload");
+  const imageSelect = document.getElementById("tracer-image-select");
   const innerGainInput = document.getElementById("tracer-inner-gain");
   const outerGainInput = document.getElementById("tracer-outer-gain");
   const applyBtn = document.getElementById("tracer-apply");
@@ -610,16 +613,10 @@
   }
 
   imageUpload.addEventListener("change", (e) => {
-    const file = e.target.files[0],
-      reader = new FileReader();
+    const file = e.target.files[0];
     if (!file) return;
-    imageFileName = file.name;
-    reader.onload = (event) => {
-      image = new Image();
-      image.onload = () => draw();
-      image.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
+    loadImageFile(file);
+    e.target.value = "";
   });
 
   // Listen on the whole overlay and stop propagation, so the studio's
@@ -633,20 +630,7 @@
     e.preventDefault();
     e.stopPropagation();
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      imageFileName = file.name;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        image = new Image();
-        image.onload = () => draw();
-        image.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    } else if (file && file.name.endsWith(".json")) {
-      const reader = new FileReader();
-      reader.onload = (event) => loadProjectFromJSON(event.target.result);
-      reader.readAsText(file);
-    }
+    if (file && file.type.startsWith("image/")) loadImageFile(file);
   });
 
   function getMousePos(e) {
@@ -1080,14 +1064,127 @@
     draw();
   }
 
-  document
-    .getElementById("tracer-load-project-btn")
-    .addEventListener("click", () => {
-      document.getElementById("tracer-load-project").click();
-    });
+  // --- Trace images ---
+  //
+  // Every image loaded into the tracer is kept here for the session, so any
+  // plane can reuse it ("Use image" menu) and project.js can save the
+  // original bytes. Traces refer to images by id.
+  // id -> { fileName, blob, image (HTMLImageElement, decoded) }
+  const traceImages = new Map();
+  let nextImageId = 1;
+  let imageId = null; // id of the image shown in the tracer, or null
 
-  function loadProjectFromJSON(json) {
-    const state = JSON.parse(json);
+  // Add an image blob to the registry. Resolves with its id once decoded.
+  // `id` is given when restoring a project, so saved references stay valid.
+  function addTraceImage(blob, fileName, id) {
+    if (!id) {
+      id = `img${nextImageId++}`;
+    } else {
+      const n = parseInt(id.replace(/^img/, ""), 10);
+      if (n >= nextImageId) nextImageId = n + 1;
+    }
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        traceImages.set(id, { fileName, blob, image: img });
+        resolve(id);
+      };
+      img.onerror = () => reject(new Error(`Could not decode ${fileName}`));
+      img.src = URL.createObjectURL(blob);
+    });
+  }
+
+  // Drop every image (when a project is opened). Ids restart; restored images
+  // keep their saved ids and addTraceImage() moves the counter past them.
+  function resetTraceImages() {
+    for (const { image: img } of traceImages.values()) {
+      URL.revokeObjectURL(img.src);
+    }
+    traceImages.clear();
+    nextImageId = 1;
+  }
+
+  function showImage(id) {
+    const entry = traceImages.get(id);
+    imageId = entry ? id : null;
+    image = entry ? entry.image : null;
+    imageFileName = entry ? entry.fileName : null;
+    imageSelect.value = imageId || "";
+    draw();
+  }
+
+  // Rebuild the "Use image" menu from the registry
+  function renderImageSelect() {
+    imageSelect.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = traceImages.size ? "Choose…" : "No images yet";
+    imageSelect.appendChild(none);
+    for (const [id, { fileName }] of traceImages) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = fileName;
+      imageSelect.appendChild(option);
+    }
+    imageSelect.value = imageId || "";
+    imageSelect.disabled = traceImages.size === 0;
+  }
+
+  function loadImageFile(file) {
+    addTraceImage(file, file.name).then(
+      (id) => {
+        renderImageSelect();
+        showImage(id);
+      },
+      (err) => alert(err.message),
+    );
+  }
+
+  imageSelect.addEventListener("change", (e) => showImage(e.target.value));
+
+  // --- Trace state ---
+  //
+  // A trace is everything needed to reopen a plane's tracer as it was left:
+  // image placement, reference circles and gains, resolution, interpolation and
+  // all points. Stored per plane on the element (element.traces[dataKey]).
+
+  const DEFAULT_TRACE = {
+    imageId: null,
+    imageX: CANVAS_SIZE / 2,
+    imageY: CANVAS_SIZE / 2,
+    imageScale: 100,
+    imageWidth: 100,
+    innerCircleRadius: 250,
+    outerCircleRadius: 500,
+    innerGain: -5,
+    outerGain: 5,
+    angleInterval: 1,
+    interpolationMethod: "natural-cubic",
+  };
+
+  function getTracerState() {
+    return {
+      imageId,
+      imageX,
+      imageY,
+      imageScale: parseInt(scaleSlider.value),
+      imageWidth: parseInt(widthSlider.value),
+      innerCircleRadius: circles[0].radius,
+      outerCircleRadius: circles[1].radius,
+      innerGain: parseFloat(innerGainInput.value),
+      outerGain: parseFloat(outerGainInput.value),
+      angleInterval,
+      interpolationMethod,
+      controlledPointIndices: Array.from(controlledPointIndices),
+      breakPointIndices: Array.from(breakPointIndices),
+      points: points.map((p) => ({ x: p.x, y: p.y })),
+    };
+  }
+
+  // Load a saved trace, or a blank one when `saved` is missing. Missing fields
+  // fall back to defaults; missing points are regenerated.
+  function setTracerState(saved) {
+    const state = { ...DEFAULT_TRACE, ...saved };
 
     angleInterval = state.angleInterval;
     angleIntervalSelect.value = String(state.angleInterval);
@@ -1121,67 +1218,49 @@
     widthValue.value = state.imageWidth;
     imageWidth = state.imageWidth / 100;
 
-    controlledPointIndices = new Set(state.controlledPointIndices);
-    breakPointIndices = new Set(state.breakPointIndices);
-    points = state.points.map((p) => ({ x: p.x, y: p.y }));
+    if (state.points) {
+      controlledPointIndices = new Set(state.controlledPointIndices);
+      breakPointIndices = new Set(state.breakPointIndices);
+      points = state.points.map((p) => ({ x: p.x, y: p.y }));
+    } else {
+      initializePoints();
+    }
 
-    draw();
+    renderImageSelect();
+    showImage(state.imageId);
   }
 
-  document
-    .getElementById("tracer-save-project")
-    .addEventListener("click", () => {
-      const state = {
-        version: 1,
-        imageX,
-        imageY,
-        imageScale: parseInt(scaleSlider.value),
-        imageWidth: parseInt(widthSlider.value),
-        innerCircleRadius: circles[0].radius,
-        outerCircleRadius: circles[1].radius,
-        innerGain: parseFloat(innerGainInput.value),
-        outerGain: parseFloat(outerGainInput.value),
-        angleInterval,
-        interpolationMethod,
-        controlledPointIndices: Array.from(controlledPointIndices),
-        breakPointIndices: Array.from(breakPointIndices),
-        points: points.map((p) => ({ x: p.x, y: p.y })),
-      };
-      const baseName = imageFileName
-        ? imageFileName.replace(/\.[^.]+$/, "")
-        : "antenna-tracer-project";
-      const blob = new Blob([JSON.stringify(state, null, 2)], {
-        type: "application/json",
-      });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${baseName}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
+  // --- Open / close ---
 
-  document
-    .getElementById("tracer-load-project")
-    .addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (event) => loadProjectFromJSON(event.target.result);
-      reader.readAsText(file);
-      e.target.value = "";
-    });
+  // Element and plane data key the overlay was opened for. Captured at open
+  // time so the trace is stored back on the right element.
+  let targetElement = null;
+  let targetDataKey = null;
 
-  // Open the overlay for a plane. Tracer state (image, points, circles) is kept
-  // between openings, so a trace can be reopened and adjusted before reapplying.
+  // Open the overlay for a plane of the active element, restoring its trace.
   function openTracer(plane) {
     targetPlane = plane;
+    targetElement = getAntennaData();
+    targetDataKey = planeToDataKey(plane);
+    setTracerState(targetElement.traces[targetDataKey]);
     planeLabel.textContent = TRACER_PLANE_NAMES[plane] || plane;
     overlay.classList.add("visible");
     resizeCanvas();
   }
 
+  // Close the overlay, keeping the trace on its element (applied or not).
+  // A plane with no image has nothing worth keeping, so its trace is dropped.
   function closeTracer() {
+    if (targetElement) {
+      if (imageId) {
+        targetElement.traces[targetDataKey] = getTracerState();
+      } else {
+        delete targetElement.traces[targetDataKey];
+      }
+    }
     targetPlane = null;
+    targetElement = null;
+    targetDataKey = null;
     overlay.classList.remove("visible");
     isMouseDown = false;
     isZooming = false;
@@ -1199,8 +1278,12 @@
     .getElementById("tracer-close")
     .addEventListener("click", closeTracer);
 
-  initializePoints();
+  setTracerState(null);
 
   window.openTracer = openTracer;
   window.closeTracer = closeTracer;
+  // For project.js
+  window.traceImages = traceImages;
+  window.addTraceImage = addTraceImage;
+  window.resetTraceImages = resetTraceImages;
 })();
