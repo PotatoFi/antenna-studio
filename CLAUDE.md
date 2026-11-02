@@ -88,7 +88,7 @@ Fixed vertical button strip (top-left). Buttons:
 * **Zoom In/Out**
 
 ### Right Pane
-Slides in from right, pushing the canvas. Contains the Edit Antenna view with three pattern sections (azimuth, elevation XZ, elevation YZ), each with polar chart + controls (paste, paste gain-only, trace, rotate, swap, mirror, delete).
+Slides in from right, pushing the canvas. Contains the Edit Antenna view with three pattern sections (azimuth, elevation XZ, elevation YZ), each with polar chart + controls (paste, paste gain-only, trace, rotate, swap, mirror, delete). Each chart draws the AP model behind the pattern via `drawAPModel()` with a `chartModelProjector()`, at the same scale relative to the pattern as the 3D view (model unit = max gain ring).
 
 ### Tracer Overlay
 Each plane's Trace button opens a full-screen overlay (`tracer.js`, merged in from the former standalone Antenna Tracer). Load a datasheet image, align it, set the inner/outer reference circles and their gains, and drag control points along the pattern. **Apply to Plane** writes the result via `setPattern(plane, data)` in `app.js` (shared with clipboard paste) to the active radio/element.

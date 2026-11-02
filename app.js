@@ -960,7 +960,7 @@ function initializeEventListeners() {
   document.querySelectorAll('input[name="ap-model"]').forEach((radio) => {
     radio.addEventListener("change", (e) => {
       apModel.type = e.target.value;
-      redraw3D();
+      redrawAll(); // the polar charts draw the model too
     });
   });
 
@@ -970,7 +970,7 @@ function initializeEventListeners() {
     .forEach((radio) => {
       radio.addEventListener("change", (e) => {
         apModel.logoPosition = e.target.value;
-        redraw3D();
+        redrawAll();
       });
     });
 
@@ -1803,6 +1803,32 @@ function redrawPolarCharts() {
   drawPolarChart("elevation-yz-chart", ad.elevationYZ, axisColors.x, "Y", "Z", "elevationYZ");
 }
 
+// Projector for drawing the AP model (drawAPModel) onto a 2D polar chart.
+// Model vertices use the 3D view's internal antenna-local axes, where internal
+// X = physical Y and internal Y = physical X (see the pattern drawing in
+// redraw3D). Each chart is an orthographic view in physical axes matching
+// drawPolarChart's labels: azimuth seen from +Z (X up, Y left), XZ from +Y
+// (Z up, X left), YZ from -X (Z up, Y left). Mount type and the display-only
+// orientation sliders are ignored, as they are for the chart patterns.
+// The returned z is depth toward the viewer, used for face sorting and logo
+// culling.
+function chartModelProjector(planeKind, centerX, centerY, scale) {
+  return (localX, localY, localZ) => {
+    const px = localY;
+    const py = localX;
+    const pz = localZ;
+    switch (planeKind) {
+      case "azimuth":
+        return { x: centerX - py * scale, y: centerY - px * scale, z: pz };
+      case "elevationXZ":
+        return { x: centerX - px * scale, y: centerY - pz * scale, z: py };
+      case "elevationYZ":
+      default:
+        return { x: centerX - py * scale, y: centerY - pz * scale, z: -px };
+    }
+  };
+}
+
 // 2D Polar Chart Drawing
 function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind) {
   const canvas = document.getElementById(canvasId);
@@ -1825,6 +1851,17 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind
   // Clear canvas - light background
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, width, height);
+
+  // Physical AP behind everything else, at the same size relative to the
+  // pattern as in the 3D view (one model unit = the max gain ring)
+  if (planeKind) {
+    ctx.save();
+    drawAPModel(
+      ctx,
+      chartModelProjector(planeKind, centerX, centerY, maxRadius),
+    );
+    ctx.restore();
+  }
 
   const minGain = getActiveRadio().minGain;
   const maxGain = getActiveRadio().maxGain;
