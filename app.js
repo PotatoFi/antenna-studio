@@ -1033,6 +1033,13 @@ function initializeEventListeners() {
     });
   });
 
+  // Trace buttons - open the tracer overlay (tracer.js) for this plane
+  document.querySelectorAll(".trace-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openTracer(e.currentTarget.dataset.plane);
+    });
+  });
+
   // Rotate buttons
   document.querySelectorAll(".rotate-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -1394,21 +1401,26 @@ function parseGainColumn(csvText) {
 }
 
 function pastePatternFromClipboard(plane, csvText, gainOnly = false) {
-  const dataKey = planeToDataKey(plane);
   const data = gainOnly ? parseGainColumn(csvText) : parseCSV(csvText);
+  setPattern(plane, data);
+}
 
-  if (data.length > 0) {
-    getAntennaData()[dataKey] = data;
-    // Make sure plane is visible when loading new data
-    getPlaneVisibility()[dataKey] = true;
-    // Update checkbox to reflect visibility
-    const checkboxId = `show-${plane}`;
-    const checkbox = document.getElementById(checkboxId);
-    if (checkbox) {
-      checkbox.checked = true;
-    }
-    redrawAll();
+// Replace a plane's pattern on the active element. Shared by clipboard paste
+// and the tracer (tracer.js).
+function setPattern(plane, data) {
+  if (data.length === 0) return;
+
+  const dataKey = planeToDataKey(plane);
+  getAntennaData()[dataKey] = data;
+  // Make sure plane is visible when loading new data
+  getPlaneVisibility()[dataKey] = true;
+  // Update checkbox to reflect visibility
+  const checkboxId = `show-${plane}`;
+  const checkbox = document.getElementById(checkboxId);
+  if (checkbox) {
+    checkbox.checked = true;
   }
+  redrawAll();
 }
 
 // Apply an affine angle map to a pattern: newAngle = norm(scale * angle + offset).

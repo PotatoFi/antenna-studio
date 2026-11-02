@@ -6,10 +6,11 @@ Antenna Studio is a utility for inputting access point specifications and antenn
 
 ## Technical Details
 
-Pure vanilla HTML, CSS, and JavaScript — no frameworks or build tools. Three files:
-* `index.html` — DOM structure (toolbar, edit pane, canvas, radio tab bar)
+Pure vanilla HTML, CSS, and JavaScript — no frameworks or build tools. Four files:
+* `index.html` — DOM structure (toolbar, edit pane, canvas, radio tab bar, tracer overlay)
 * `styles.css` — all styling
-* `app.js` — all logic (~2000 lines)
+* `app.js` — all studio logic (~3000 lines)
+* `tracer.js` — the pattern tracer overlay (see below), self-contained in an IIFE
 
 Reference style files from sibling projects: `clipboard-style.css`, `spectrum-style.html`. The floating UI style (fixed position, `border-radius: 6px`, `box-shadow`, `var(--panel-bg)`) comes from the clipboard project's `.input-panel` pattern.
 
@@ -84,7 +85,14 @@ Fixed vertical button strip (top-left). Buttons:
 * **Zoom In/Out**
 
 ### Right Pane
-Slides in from right, pushing the canvas. Contains the Edit Antenna view with three pattern sections (azimuth, elevation XZ, elevation YZ), each with polar chart + controls (paste, rotate, swap, mirror, delete).
+Slides in from right, pushing the canvas. Contains the Edit Antenna view with three pattern sections (azimuth, elevation XZ, elevation YZ), each with polar chart + controls (paste, paste gain-only, trace, rotate, swap, mirror, delete).
+
+### Tracer Overlay
+Each plane's Trace button opens a full-screen overlay (`tracer.js`, merged in from the former standalone Antenna Tracer). Load a datasheet image, align it, set the inner/outer reference circles and their gains, and drag control points along the pattern. **Apply to Plane** writes the result via `setPattern(plane, data)` in `app.js` (shared with clipboard paste) to the active radio/element.
+* Tracer angles have 0° at the top of the image, increasing clockwise; studio polar charts have 0° at the top, increasing counter-clockwise. Apply mirrors angles (`(360 − a) mod 360`), so the trace looks the same in the Edit pane chart as on the image. Copy CSV (`C`) keeps raw tracer angles.
+* Tracer state persists between openings (in memory only); Save/Load Project writes/reads tracer JSON.
+* While open, the tracer's capture-phase key handlers swallow keys so studio hotkeys don't fire; Esc closes it. Its drag/drop handlers stop propagation so the studio's file-import drop doesn't trigger.
+* Example images are in `examples/tracer/`.
 
 ## Export/Import Format
 

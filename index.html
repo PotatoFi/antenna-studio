@@ -74,6 +74,7 @@
                         <div class="pattern-controls">
                             <button class="toolbar-button paste-btn" data-plane="azimuth" title="Paste CSV (angle + gain)"><i class="bx bx-paste"></i></button>
                             <button class="toolbar-button paste-gain-btn" data-plane="azimuth" title="Paste gain only (single column, angles auto-distributed)"><i class="bx bx-list-ol"></i></button>
+                            <button class="toolbar-button trace-btn" data-plane="azimuth" title="Trace pattern from an image"><i class="bx bx-pencil"></i></button>
                             <button class="toolbar-button rotate-btn" data-plane="azimuth" data-direction="ccw" title="Rotate counter-clockwise by 90°"><i class="bx bx-shape-rotate-ccw" /></i></button>
                             <button class="toolbar-button rotate-btn" data-plane="azimuth" data-direction="cw" title="Rotate clockwise by 90°"><i class="bx bx-shape-rotate-cw" /></i></button>
                             <button class="toolbar-button swap-btn" data-plane="azimuth" data-target="elevation-xz" title="Swap to XZ" style="color: #40b040"><i class="bx bx-arrow-left-right"></i></button>
@@ -98,6 +99,7 @@
                         <div class="pattern-controls">
                             <button class="toolbar-button paste-btn" data-plane="elevation-xz" title="Paste CSV (angle + gain)"><i class="bx bx-paste"></i></button>
                             <button class="toolbar-button paste-gain-btn" data-plane="elevation-xz" title="Paste gain only (single column, angles auto-distributed)"><i class="bx bx-list-ol"></i></button>
+                            <button class="toolbar-button trace-btn" data-plane="elevation-xz" title="Trace pattern from an image"><i class="bx bx-pencil"></i></button>
                             <button class="toolbar-button rotate-btn" data-plane="elevation-xz" data-direction="ccw" title="Rotate counter-clockwise by 90°"><i class="bx bx-shape-rotate-ccw"></i></button>
                             <button class="toolbar-button rotate-btn" data-plane="elevation-xz" data-direction="cw" title="Rotate clockwise by 90°"><i class="bx bx-shape-rotate-cw"></i></button>
                             <button class="toolbar-button swap-btn" data-plane="elevation-xz" data-target="azimuth" title="Swap to XY" style="color: #4080e0"><i class="bx bx-arrow-left-right"></i></button>
@@ -122,6 +124,7 @@
                         <div class="pattern-controls">
                             <button class="toolbar-button paste-btn" data-plane="elevation-yz" title="Paste CSV (angle + gain)"><i class="bx bx-paste"></i></button>
                             <button class="toolbar-button paste-gain-btn" data-plane="elevation-yz" title="Paste gain only (single column, angles auto-distributed)"><i class="bx bx-list-ol"></i></button>
+                            <button class="toolbar-button trace-btn" data-plane="elevation-yz" title="Trace pattern from an image"><i class="bx bx-pencil"></i></button>
                             <button class="toolbar-button rotate-btn" data-plane="elevation-yz" data-direction="ccw" title="Rotate counter-clockwise by 90°"><i class="bx bx-shape-rotate-ccw"></i></button>
                             <button class="toolbar-button rotate-btn" data-plane="elevation-yz" data-direction="cw" title="Rotate clockwise by 90°"><i class="bx bx-shape-rotate-cw"></i></button>
                             <button class="toolbar-button swap-btn" data-plane="elevation-yz" data-target="azimuth" title="Swap to XY" style="color: #4080e0"><i class="bx bx-arrow-left-right"></i></button>
@@ -468,6 +471,162 @@
             </div>
         </div>
 
+        <!-- Tracer overlay (tracer.js): trace a pattern from an image into
+             the plane whose Trace button opened it. -->
+        <div id="tracer-overlay" class="tracer-overlay">
+            <div class="tracer-canvas-column" id="tracer-canvas-column">
+                <canvas id="tracer-canvas"></canvas>
+            </div>
+            <div class="tracer-sidebar">
+                <div class="tracer-header">
+                    <h3>
+                        Trace Pattern
+                        <span id="tracer-plane-label"></span>
+                    </h3>
+                    <button
+                        class="toolbar-button"
+                        id="tracer-close"
+                        title="Close without applying (Esc)"
+                    >
+                        <i class="bx bx-x"></i>
+                    </button>
+                </div>
+
+                <div class="tracer-actions">
+                    <button
+                        class="toolbar-button blue"
+                        id="tracer-apply"
+                        title="Replace this plane's pattern with the trace"
+                    >
+                        Apply to Plane
+                    </button>
+                    <button
+                        class="toolbar-button"
+                        id="tracer-copy-csv"
+                        title="Copy the trace as CSV, in tracer angles (C)"
+                    >
+                        <i class="bx bx-copy"></i>
+                    </button>
+                    <span id="tracer-copy-status">Copied!</span>
+                </div>
+
+                <h4>Image</h4>
+                <div class="tracer-input-row">
+                    <input
+                        type="file"
+                        id="tracer-image-upload"
+                        accept="image/png,image/jpeg"
+                    />
+                </div>
+                <div class="tracer-slider">
+                    <div class="tracer-slider-label">
+                        <label for="tracer-scale">Image Scale</label>
+                        <input type="number" id="tracer-scale-value" value="100" />
+                    </div>
+                    <input type="range" id="tracer-scale" min="10" max="200" value="100" />
+                </div>
+                <div class="tracer-slider">
+                    <div class="tracer-slider-label">
+                        <label for="tracer-width">Image Width</label>
+                        <input type="number" id="tracer-width-value" value="100" />
+                    </div>
+                    <input type="range" id="tracer-width" min="80" max="120" value="100" />
+                </div>
+                <div class="tracer-slider">
+                    <div class="tracer-slider-label">
+                        <label for="tracer-x-position">X Position</label>
+                        <input type="number" id="tracer-x-position-value" value="1000" />
+                    </div>
+                    <input type="range" id="tracer-x-position" min="0" max="2000" value="1000" />
+                </div>
+                <div class="tracer-slider">
+                    <div class="tracer-slider-label">
+                        <label for="tracer-y-position">Y Position</label>
+                        <input type="number" id="tracer-y-position-value" value="1000" />
+                    </div>
+                    <input type="range" id="tracer-y-position" min="0" max="2000" value="1000" />
+                </div>
+                <button class="toolbar-button" id="tracer-reset-points">
+                    Reset Control Points
+                </button>
+
+                <h4>Labels</h4>
+                <div class="tracer-slider">
+                    <div class="tracer-slider-label">
+                        <label for="tracer-outer-circle">Outer Circle Size</label>
+                        <input type="number" id="tracer-outer-circle-value" value="500" />
+                    </div>
+                    <input type="range" id="tracer-outer-circle" min="50" max="1000" value="500" />
+                </div>
+                <div class="tracer-input-row">
+                    <label for="tracer-outer-gain">Outer Circle Gain (dBi)</label>
+                    <input type="number" id="tracer-outer-gain" value="5" />
+                </div>
+                <div class="tracer-slider">
+                    <div class="tracer-slider-label">
+                        <label for="tracer-inner-circle">Inner Circle Size</label>
+                        <input type="number" id="tracer-inner-circle-value" value="250" />
+                    </div>
+                    <input type="range" id="tracer-inner-circle" min="10" max="500" value="250" />
+                </div>
+                <div class="tracer-input-row">
+                    <label for="tracer-inner-gain">Inner Circle Gain (dBi)</label>
+                    <input type="number" id="tracer-inner-gain" value="-5" />
+                </div>
+                <div class="tracer-input-row">
+                    <label for="tracer-angle-interval">Resolution</label>
+                    <select id="tracer-angle-interval">
+                        <option value="30">30°</option>
+                        <option value="15">15°</option>
+                        <option value="10">10°</option>
+                        <option value="5">5°</option>
+                        <option value="2">2°</option>
+                        <option value="1" selected>1°</option>
+                    </select>
+                </div>
+                <div class="tracer-input-row">
+                    <label for="tracer-interpolation">Interpolation</label>
+                    <select id="tracer-interpolation">
+                        <option value="natural-cubic" selected>Natural Cubic Spline</option>
+                        <option value="catmull-rom">Catmull-Rom</option>
+                        <option value="linear">Linear</option>
+                        <option value="straight">Straight Linear</option>
+                    </select>
+                </div>
+
+                <h4>Project</h4>
+                <div class="tracer-input-row">
+                    <button class="toolbar-button" id="tracer-save-project">Save Project</button>
+                    <button class="toolbar-button" id="tracer-load-project-btn">Load Project</button>
+                    <input type="file" id="tracer-load-project" accept=".json" style="display: none" />
+                </div>
+
+                <h4>Controls</h4>
+                <ul class="tracer-controls-list">
+                    <li><b>Zoom:</b> Hold <span class="kbd">Shift</span>, drag vertically</li>
+                    <li><b>Zoom:</b> Hold <span class="kbd">⌘</span>, use touchpad</li>
+                    <li><b>Pan:</b> Hold <span class="kbd">Spacebar</span>, move mouse</li>
+                    <li><b>Pan:</b> Use scroll wheel/touchpad</li>
+                    <li>
+                        <b>Image Position:</b> <span class="kbd">←</span>
+                        <span class="kbd">→</span> <span class="kbd">↑</span>
+                        <span class="kbd">↓</span>
+                    </li>
+                    <li><b>Outer Circle:</b> <span class="kbd">Q</span> <span class="kbd">A</span></li>
+                    <li><b>Inner Circle:</b> <span class="kbd">W</span> <span class="kbd">S</span></li>
+                    <li><b>Image Width:</b> <span class="kbd">E</span> <span class="kbd">D</span></li>
+                    <li><b>Copy CSV:</b> <span class="kbd">C</span></li>
+                    <li><b>Close:</b> <span class="kbd">Esc</span></li>
+                    <li><b>Move Controlled Point:</b> Click and drag</li>
+                    <li><b>Send to Center:</b> <span class="kbd">Alt</span> + click Controlled Point</li>
+                    <li><b>Add Controlled Point:</b> Click Uncontrolled Point</li>
+                    <li><b>Remove Controlled Point:</b> Right-click Controlled Point</li>
+                    <li><b>Toggle Break Point:</b> <span class="kbd">B</span> + click Controlled Point</li>
+                </ul>
+            </div>
+        </div>
+
         <script src="app.js"></script>
+        <script src="tracer.js"></script>
     </body>
 </html>
