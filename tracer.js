@@ -457,6 +457,21 @@
     }
   }
 
+  // Draw a stored trace's image for the studio's 3D view (app.js), in trace
+  // coordinates: tracer canvas units with the origin at the crosshair. Placed
+  // as drawImage() places it, clipped to the tracer's max trace radius.
+  function drawTraceImage(ctx, trace, image) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, trace.outerCircleRadius * MAX_RADIUS_MULTIPLIER, 0, 2 * Math.PI);
+    ctx.clip();
+    ctx.scale(trace.imageWidth / 100, 1);
+    ctx.translate(trace.imageX - center.x, trace.imageY - center.y);
+    ctx.scale(trace.imageScale / 100, trace.imageScale / 100);
+    ctx.drawImage(image, -image.width / 2, -image.height / 2);
+    ctx.restore();
+  }
+
   function drawCircles() {
     circles.forEach((circle) => {
       ctx.beginPath();
@@ -604,10 +619,31 @@
     ctx.translate(-CANVAS_SIZE / 2, -CANVAS_SIZE / 2);
 
     drawImage();
+    drawAPPreview();
     drawCircles();
     drawCrosshair();
     drawAngleMarkers();
     drawPoints();
+    ctx.restore();
+  }
+
+  // Physical AP (app.js drawAPModel), oriented exactly as the Edit pane chart
+  // for this plane draws it, so it lines up with the trace once applied.
+  // Fixed size: one model unit is AP_PREVIEW_SCALE canvas units, independent
+  // of the reference circles.
+  const AP_PREVIEW_SCALE = 500;
+  function drawAPPreview() {
+    if (!targetPlane) return;
+    ctx.save();
+    drawAPModel(
+      ctx,
+      chartModelProjector(
+        planeToDataKey(targetPlane),
+        center.x,
+        center.y,
+        AP_PREVIEW_SCALE,
+      ),
+    );
     ctx.restore();
   }
 
@@ -1215,6 +1251,7 @@
     targetElement = null;
     targetDataKey = null;
     overlay.classList.remove("visible");
+    redraw3D(); // the stored trace's image may be shown there
     isMouseDown = false;
     isZooming = false;
     isSpacebarDown = false;
@@ -1235,4 +1272,5 @@
 
   window.openTracer = openTracer;
   window.closeTracer = closeTracer;
+  window.drawTraceImage = drawTraceImage;
 })();

@@ -190,6 +190,7 @@ const PROJECT_VIEW_KEYS = [
   "showPhiLabels",
   "showThetaLabels",
   "showZenithLabels",
+  "showTraceImages",
   "downtilt",
   "azimuthDirection",
   "roll",
@@ -407,6 +408,8 @@ function syncUIFromState() {
   document.getElementById("show-theta-labels").checked = view3D.showThetaLabels;
   document.getElementById("show-zenith-labels").checked =
     view3D.showZenithLabels;
+  document.getElementById("show-trace-images").checked =
+    view3D.showTraceImages;
 
   const setSlider = (id, value, label) => {
     document.getElementById(id).value = value;

@@ -594,6 +594,7 @@ const view3D = {
   showPhiLabels: false,
   showThetaLabels: false,
   showZenithLabels: false,
+  showTraceImages: false,
   downtilt: 0, // Display-only Y-axis rotation (degrees)
   azimuthDirection: 0, // Display-only world Z-axis rotation (degrees)
   roll: 0, // Display-only local Z-axis rotation (degrees)
@@ -1119,6 +1120,13 @@ function initializeEventListeners() {
     .getElementById("show-antenna-axes")
     .addEventListener("change", (e) => {
       view3D.showAntennaAxes = e.target.checked;
+      redraw3D();
+    });
+
+  document
+    .getElementById("show-trace-images")
+    .addEventListener("change", (e) => {
+      view3D.showTraceImages = e.target.checked;
       redraw3D();
     });
 
@@ -2258,6 +2266,25 @@ function drawAPLogo(ctx, projectAntennaToScreen, geometry) {
 }
 
 // 3D Rendering
+// Decoded trace images for the 3D view, keyed by Blob. Returns null until the
+// image has loaded; the 3D view redraws once it has.
+const traceImageCache = new WeakMap();
+function getTraceImage(blob) {
+  let img = traceImageCache.get(blob);
+  if (!img) {
+    img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      redraw3D();
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+    traceImageCache.set(blob, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
 function redraw3D() {
   const canvas = document.getElementById("canvas-3d");
   const ctx = canvas.getContext("2d");
@@ -2423,16 +2450,6 @@ function redraw3D() {
   const sideY = Math.sin(az);
   const arrowMidDist = 0.8 + 0.2 + 0.08; // axisLength + 0.2 offset + half arrowLen
 
-  // Depth-sort ground plane, arrow, and AP model together (painter's algorithm).
-  // drawAPModel sorts its own faces internally; use the world-origin depth (0) as its sort key.
-  const drawables = [
-    { depth: projectWorldToScreen(0, 0, worldOrientation.groundPlaneZ).z, draw: drawGroundAndAxes },
-    { depth: projectWorldToScreen(fwdX * arrowMidDist, fwdY * arrowMidDist, 0).z, draw: drawAzimuthArrow },
-    { depth: 0, draw: () => drawAPModel(ctx, projectAntennaToScreen) },
-  ];
-  drawables.sort((a, b) => a.depth - b.depth);
-  for (const { draw } of drawables) draw();
-
   const ad = getAntennaData();
   const pv = getPlaneVisibility();
   const radio = getActiveRadio();
@@ -2444,6 +2461,60 @@ function redraw3D() {
   function gainToRadius(gain) {
     return Math.max(0, (gain - minGain) / gainRange);
   }
+
+  // Draw each visible plane's trace image lying in its plane, oriented as the
+  // trace is applied, to check a datasheet against the AP model. The outer
+  // reference circle lands on its gain's ring; other rings only line up when
+  // the image's center gain is Min Gain. Multiply blending drops the images'
+  // white backgrounds.
+  function drawTraceImages() {
+    if (!view3D.showTraceImages) return;
+    // Antenna-local direction of image right (+x) and image down (+y) per plane
+    const planes = [
+      { key: "azimuth", right: [-1, 0, 0], down: [0, -1, 0] },
+      { key: "elevationXZ", right: [0, -1, 0], down: [0, 0, -1] },
+      { key: "elevationYZ", right: [-1, 0, 0], down: [0, 0, -1] },
+    ];
+    const origin = projectAntennaToScreen(0, 0, 0);
+    for (const { key, right, down } of planes) {
+      const trace = ad.traces[key];
+      if (!pv[key] || !trace) continue;
+      const image = getTraceImage(trace.imageBlob);
+      if (!image) continue;
+      // Trace units (tracer canvas pixels) to antenna-local units
+      const k = gainToRadius(trace.outerGain) / trace.outerCircleRadius;
+      if (!(k > 0)) continue;
+      const r = projectAntennaToScreen(right[0] * k, right[1] * k, right[2] * k);
+      const d = projectAntennaToScreen(down[0] * k, down[1] * k, down[2] * k);
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      ctx.globalCompositeOperation = "multiply";
+      ctx.transform(
+        r.x - origin.x, r.y - origin.y,
+        d.x - origin.x, d.y - origin.y,
+        origin.x, origin.y,
+      );
+      drawTraceImage(ctx, trace, image);
+      ctx.restore();
+    }
+  }
+
+  // Depth-sort ground plane, arrow, and AP model together (painter's algorithm).
+  // drawAPModel sorts its own faces internally; use the world-origin depth (0) as its sort key.
+  // Trace images pass through the model, so they go just behind it.
+  const drawables = [
+    { depth: projectWorldToScreen(0, 0, worldOrientation.groundPlaneZ).z, draw: drawGroundAndAxes },
+    { depth: projectWorldToScreen(fwdX * arrowMidDist, fwdY * arrowMidDist, 0).z, draw: drawAzimuthArrow },
+    {
+      depth: 0,
+      draw: () => {
+        drawTraceImages();
+        drawAPModel(ctx, projectAntennaToScreen);
+      },
+    },
+  ];
+  drawables.sort((a, b) => a.depth - b.depth);
+  for (const { draw } of drawables) draw();
 
   // Draw Azimuth pattern (XY plane in physics coords, Z=0)
   // Rotates around Z axis - use Z color (blue)
