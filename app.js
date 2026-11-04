@@ -1040,7 +1040,7 @@ function initializeEventListeners() {
     });
   });
 
-  // Trace buttons - open the tracer overlay (tracer.js) for this plane
+  // Trace buttons - put the canvas in trace mode (tracer.js) for this plane
   document.querySelectorAll(".trace-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       openTracer(e.currentTarget.dataset.plane);
@@ -1232,6 +1232,7 @@ function initializeEventListeners() {
   canvas3d.addEventListener(
     "wheel",
     (e) => {
+      if (traceMode.dataKey) return; // tracer.js handles it
       e.preventDefault();
       // Normalize across deltaMode: pixel (0), line (1), page (2)
       const raw =
@@ -1361,6 +1362,7 @@ function resizeCanvas3D() {
   const rect = canvas.getBoundingClientRect();
   canvas.width = rect.width;
   canvas.height = rect.height;
+  if (traceMode.dataKey) layoutTracer();
   redraw3D();
 }
 
@@ -2285,8 +2287,247 @@ function getTraceImage(blob) {
   return img.complete && img.naturalWidth > 0 ? img : null;
 }
 
+// --- Camera ---
+//
+// The 3D view is an orthographic projection. A camera is a rotation into view
+// space — (right, down, depth), depth increasing toward the viewer — plus a
+// screen center and a scale (pixels per unit). `local` maps antenna-local
+// coordinates to view space, `world` maps world coordinates. Both are 3x3
+// rotation matrices (arrays of rows).
+
+// Matrix of a linear function f(x, y, z) -> [a, b, c], built from its
+// images of the basis vectors.
+function matrixFromLinear(f) {
+  const cols = [f(1, 0, 0), f(0, 1, 0), f(0, 0, 1)];
+  return [0, 1, 2].map((r) => [cols[0][r], cols[1][r], cols[2][r]]);
+}
+
+function mat3Mul(A, B) {
+  return [0, 1, 2].map((r) =>
+    [0, 1, 2].map(
+      (c) => A[r][0] * B[0][c] + A[r][1] * B[1][c] + A[r][2] * B[2][c],
+    ),
+  );
+}
+
+function mat3Transpose(M) {
+  return [0, 1, 2].map((r) => [M[0][r], M[1][r], M[2][r]]);
+}
+
+// Quaternion [w, x, y, z] of a rotation matrix (Shepperd's method)
+function mat3ToQuat(M) {
+  const tr = M[0][0] + M[1][1] + M[2][2];
+  let q;
+  if (tr > 0) {
+    const s = Math.sqrt(tr + 1) * 2;
+    q = [s / 4, (M[2][1] - M[1][2]) / s, (M[0][2] - M[2][0]) / s, (M[1][0] - M[0][1]) / s];
+  } else if (M[0][0] > M[1][1] && M[0][0] > M[2][2]) {
+    const s = Math.sqrt(1 + M[0][0] - M[1][1] - M[2][2]) * 2;
+    q = [(M[2][1] - M[1][2]) / s, s / 4, (M[0][1] + M[1][0]) / s, (M[0][2] + M[2][0]) / s];
+  } else if (M[1][1] > M[2][2]) {
+    const s = Math.sqrt(1 + M[1][1] - M[0][0] - M[2][2]) * 2;
+    q = [(M[0][2] - M[2][0]) / s, (M[0][1] + M[1][0]) / s, s / 4, (M[1][2] + M[2][1]) / s];
+  } else {
+    const s = Math.sqrt(1 + M[2][2] - M[0][0] - M[1][1]) * 2;
+    q = [(M[1][0] - M[0][1]) / s, (M[0][2] + M[2][0]) / s, (M[1][2] + M[2][1]) / s, s / 4];
+  }
+  return q;
+}
+
+function quatToMat3([w, x, y, z]) {
+  return [
+    [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+    [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+    [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+  ];
+}
+
+function quatSlerp(a, b, t) {
+  let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  if (dot < 0) {
+    b = b.map((v) => -v);
+    dot = -dot;
+  }
+  let wa, wb;
+  if (dot > 0.9995) {
+    wa = 1 - t;
+    wb = t;
+  } else {
+    const theta = Math.acos(dot);
+    const sin = Math.sin(theta);
+    wa = Math.sin((1 - t) * theta) / sin;
+    wb = Math.sin(t * theta) / sin;
+  }
+  const q = a.map((v, i) => wa * v + wb * b[i]);
+  const len = Math.hypot(...q);
+  return q.map((v) => v / len);
+}
+
+// The orbit camera (view3D rotation and zoom). World Z is up on screen at
+// rotationX = 0; antenna-local coordinates go through antennaToWorld().
+function getOrbitCamera(width, height) {
+  const camRotX = (view3D.rotationX * Math.PI) / 180;
+  const camRotY = (view3D.rotationY * Math.PI) / 180;
+  const world = matrixFromLinear((x, y, z) => {
+    // Rotate around world Z axis (horizontal pan)
+    const x1 = x * Math.cos(camRotY) - y * Math.sin(camRotY);
+    const y1 = x * Math.sin(camRotY) + y * Math.cos(camRotY);
+    // Rotate around X axis (vertical tilt)
+    const y2 = y1 * Math.cos(camRotX) - z * Math.sin(camRotX);
+    const z2 = y1 * Math.sin(camRotX) + z * Math.cos(camRotX);
+    // Z maps to screen up; y2 is depth
+    return [x1, -z2, y2];
+  });
+  const antenna = matrixFromLinear((x, y, z) => {
+    const w = antennaToWorld(x, y, z);
+    return [w.x, w.y, w.z];
+  });
+  return {
+    world,
+    local: mat3Mul(world, antenna),
+    antenna,
+    centerX: width / 2,
+    centerY: height / 2,
+    scale: (Math.min(width, height) / 5) * view3D.zoom,
+  };
+}
+
+// The camera that shows a plane exactly as the tracer does: its rotation is
+// the plane's chartModelProjector(), and its center and scale are where the
+// tracer currently draws one AP model unit.
+function getTracerCamera(dataKey) {
+  const project = chartModelProjector(dataKey, 0, 0, 1);
+  const tracerView = getTracerView();
+  return {
+    local: matrixFromLinear((x, y, z) => {
+      const p = project(x, y, z);
+      return [p.x, p.y, p.z];
+    }),
+    centerX: tracerView.centerX,
+    centerY: tracerView.centerY,
+    scale: tracerView.scale,
+  };
+}
+
+// Blend the orbit camera toward the tracer camera (t = 0..1). Rotation is
+// slerped, scale interpolated geometrically, center linearly. World layers
+// keep their relation to the antenna, so they turn with it.
+function blendCameras(orbit, tracer, t) {
+  if (t <= 0) return orbit;
+  const local = quatToMat3(
+    quatSlerp(mat3ToQuat(orbit.local), mat3ToQuat(tracer.local), t),
+  );
+  return {
+    local,
+    world: mat3Mul(local, mat3Transpose(orbit.antenna)),
+    centerX: orbit.centerX + (tracer.centerX - orbit.centerX) * t,
+    centerY: orbit.centerY + (tracer.centerY - orbit.centerY) * t,
+    scale: orbit.scale * Math.pow(tracer.scale / orbit.scale, t),
+  };
+}
+
+// --- Trace mode ---
+//
+// Tracing happens on the studio canvas. Entering trace mode turns the camera
+// onto the plane until it matches the tracer's view, fading the 3D layers
+// out, then fades the tracer's layers in (the AP model stays put throughout,
+// drawn identically by both). Exiting runs the same timeline backward.
+//
+// `progress` runs 0 (studio) .. 1 (tracer). The camera moves over the first
+// TRACE_CAMERA_END of it; the tracer's layers fade in over the rest.
+const TRACE_TRANSITION_MS = 700;
+const TRACE_CAMERA_END = 0.75;
+const traceMode = {
+  dataKey: null, // plane being traced, set from enter until exit finishes
+  progress: 0,
+  target: 0,
+  frame: null,
+  onDone: null,
+};
+
+// True once the tracer is fully shown and should take canvas input
+function isTracerInteractive() {
+  return traceMode.dataKey !== null && traceMode.progress === 1 && traceMode.target === 1;
+}
+
+// Called by tracer.js openTracer() after it has loaded the plane's trace
+function enterTraceMode(dataKey) {
+  traceMode.dataKey = dataKey;
+  closeAllDropdowns();
+  document.body.classList.add("tracing");
+  document.getElementById("edit-pane").classList.remove("visible");
+  document.getElementById("trace-pane").classList.add("visible");
+  animateTraceMode(1, null);
+}
+
+// Called by tracer.js closeTracer(). `onDone` runs once the studio is back.
+function exitTraceMode(onDone) {
+  document.getElementById("trace-pane").classList.remove("visible");
+  document.getElementById("edit-pane").classList.add("visible");
+  animateTraceMode(0, () => {
+    traceMode.dataKey = null;
+    document.body.classList.remove("tracing");
+    if (onDone) onDone();
+    redrawAll();
+  });
+}
+
+function animateTraceMode(target, onDone) {
+  traceMode.target = target;
+  traceMode.onDone = onDone;
+  if (traceMode.frame) return; // the running animation picks up the new target
+  let last = performance.now();
+  const step = (now) => {
+    const delta = (now - last) / TRACE_TRANSITION_MS;
+    last = now;
+    const dir = Math.sign(traceMode.target - traceMode.progress);
+    traceMode.progress = Math.min(1, Math.max(0, traceMode.progress + dir * delta));
+    if ((dir > 0 && traceMode.progress >= traceMode.target) ||
+        (dir < 0 && traceMode.progress <= traceMode.target) || dir === 0) {
+      traceMode.progress = traceMode.target;
+      traceMode.frame = null;
+      redraw3D();
+      const done = traceMode.onDone;
+      traceMode.onDone = null;
+      if (done) done();
+      return;
+    }
+    redraw3D();
+    traceMode.frame = requestAnimationFrame(step);
+  };
+  traceMode.frame = requestAnimationFrame(step);
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// Draw the studio canvas: the 3D scene, the tracer, or a transition frame.
+// Everything that repaints the canvas goes through here (the tracer too), so
+// a stray redraw can never paint the wrong mode.
 function redraw3D() {
   const canvas = document.getElementById("canvas-3d");
+  const p = traceMode.dataKey ? traceMode.progress : 0;
+  if (p > TRACE_CAMERA_END) {
+    renderTracer((p - TRACE_CAMERA_END) / (1 - TRACE_CAMERA_END));
+    return;
+  }
+  let camera = getOrbitCamera(canvas.width, canvas.height);
+  if (p > 0) {
+    camera = blendCameras(
+      camera,
+      getTracerCamera(traceMode.dataKey),
+      easeInOutCubic(p / TRACE_CAMERA_END),
+    );
+  }
+  // 3D layers are gone by the time the camera is halfway there
+  const sceneAlpha = Math.max(0, 1 - p / (TRACE_CAMERA_END / 2));
+  draw3DScene(canvas, camera, sceneAlpha);
+}
+
+// Draw the 3D scene through `camera`. Every layer except the AP model is
+// drawn at `sceneAlpha`.
+function draw3DScene(canvas, camera, sceneAlpha) {
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
@@ -2295,40 +2536,30 @@ function redraw3D() {
   ctx.fillStyle = "#fafafa";
   ctx.fillRect(0, 0, width, height);
 
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const scale = (Math.min(width, height) / 5) * view3D.zoom;
+  ctx.save();
+  ctx.globalAlpha = sceneAlpha;
+
+  const { centerX, centerY, scale } = camera;
 
   const showGroundPlane = document.getElementById("show-ground-plane").checked;
 
-  // Convert camera rotation to radians
-  const camRotX = (view3D.rotationX * Math.PI) / 180;
-  const camRotY = (view3D.rotationY * Math.PI) / 180;
+  function project(M, x, y, z) {
+    return {
+      x: centerX + (M[0][0] * x + M[0][1] * y + M[0][2] * z) * scale,
+      y: centerY + (M[1][0] * x + M[1][1] * y + M[1][2] * z) * scale,
+      z: M[2][0] * x + M[2][1] * y + M[2][2] * z, // depth, toward viewer
+    };
+  }
 
   // Project world coordinates to screen
   // Physics/ISO convention: Z up, X toward viewer (down-left), Y to the right (down-right)
   function projectWorldToScreen(worldX, worldY, worldZ) {
-    // Rotate around world Z axis (horizontal pan)
-    const x1 = worldX * Math.cos(camRotY) - worldY * Math.sin(camRotY);
-    const y1 = worldX * Math.sin(camRotY) + worldY * Math.cos(camRotY);
-    const z1 = worldZ;
-
-    // Rotate around X axis (vertical tilt)
-    const y2 = y1 * Math.cos(camRotX) - z1 * Math.sin(camRotX);
-    const z2 = y1 * Math.sin(camRotX) + z1 * Math.cos(camRotX);
-
-    // Orthographic projection - Z maps to screen Y (inverted)
-    return {
-      x: centerX + x1 * scale,
-      y: centerY - z2 * scale,
-      z: y2, // depth for potential sorting
-    };
+    return project(camera.world, worldX, worldY, worldZ);
   }
 
   // Project antenna-local coordinates to screen
   function projectAntennaToScreen(localX, localY, localZ) {
-    const world = antennaToWorld(localX, localY, localZ);
-    return projectWorldToScreen(world.x, world.y, world.z);
+    return project(camera.local, localX, localY, localZ);
   }
 
   function drawGroundAndAxes() {
@@ -2347,9 +2578,9 @@ function redraw3D() {
       ];
 
       // Fill a light grey top-facing surface only when the camera looks down
-      // onto the plane's top face (normal +Z toward viewer -> sin(camRotX) < 0).
+      // onto the plane's top face (world +Z has depth toward the viewer).
       // When looking up from below, leave it transparent to see through the grid.
-      if (Math.sin(camRotX) < 0) {
+      if (camera.world[2][2] > 0) {
         ctx.fillStyle = "rgba(210, 210, 210, 0.18)";
         ctx.beginPath();
         ctx.moveTo(corners[0].x, corners[0].y);
@@ -2487,7 +2718,7 @@ function redraw3D() {
       const r = projectAntennaToScreen(right[0] * k, right[1] * k, right[2] * k);
       const d = projectAntennaToScreen(down[0] * k, down[1] * k, down[2] * k);
       ctx.save();
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.6 * sceneAlpha;
       ctx.globalCompositeOperation = "multiply";
       ctx.transform(
         r.x - origin.x, r.y - origin.y,
@@ -2509,7 +2740,11 @@ function redraw3D() {
       depth: 0,
       draw: () => {
         drawTraceImages();
+        // The model stays solid through trace mode transitions
+        ctx.save();
+        ctx.globalAlpha = 1;
         drawAPModel(ctx, projectAntennaToScreen);
+        ctx.restore();
       },
     },
   ];
@@ -2703,7 +2938,7 @@ function redraw3D() {
   function drawAzimuthArrow() {
     ctx.save();
     ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = sceneAlpha;
 
     const axisLength = 0.8;
     const arrowStart = axisLength + 0.2;
@@ -2735,10 +2970,12 @@ function redraw3D() {
     ctx.restore();
   }
 
+  ctx.restore(); // sceneAlpha
 }
 
-// 3D Mouse interaction
+// 3D Mouse interaction (the tracer handles the canvas in trace mode)
 function start3DDrag(e) {
+  if (traceMode.dataKey) return;
   // Don't start dragging if clicking on UI elements
   if (e.target.closest(".tool-menu") || e.target.closest(".right-pane")) {
     return;

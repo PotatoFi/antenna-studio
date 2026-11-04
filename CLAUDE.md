@@ -7,10 +7,10 @@ Antenna Studio is a utility for inputting access point specifications and antenn
 ## Technical Details
 
 Pure vanilla HTML, CSS, and JavaScript — no frameworks or build tools. Five files, loaded in this order (they share globals as classic scripts):
-* `index.html` — DOM structure (toolbar, edit pane, canvas, radio tab bar, tracer overlay)
+* `index.html` — DOM structure (toolbar, edit pane, trace pane, canvas, radio tab bar)
 * `styles.css` — all styling
 * `app.js` — all studio logic (~3000 lines)
-* `tracer.js` — the pattern tracer overlay (see below), self-contained in an IIFE
+* `tracer.js` — the pattern tracer, trace mode of the studio canvas (see below), self-contained in an IIFE
 * `project.js` — .antstudio project save/open (dependency-free ZIP read/write), unsaved-change tracking
 
 Reference style files from sibling projects: `clipboard-style.css`, `spectrum-style.html`. The floating UI style (fixed position, `border-radius: 6px`, `box-shadow`, `var(--panel-bg)`) comes from the clipboard project's `.input-panel` pattern.
@@ -59,7 +59,9 @@ CSV export records `# Format Version,2` for this convention. Files without an ex
 
 ### Rendering
 
-3D uses a 2D canvas with manual orthographic projection and painter's algorithm for depth sorting. The pipeline: antenna-local coords -> `antennaToWorld()` -> `projectWorldToScreen()` -> 2D canvas drawing.
+3D uses a 2D canvas with manual orthographic projection and painter's algorithm for depth sorting. A camera is a 3×3 rotation into view space (right, down, depth toward viewer) plus center and scale: `getOrbitCamera()` builds it from `view3D` and `antennaToWorld()`, with `local` (antenna-local → view) and `world` (world → view) matrices. `draw3DScene()` projects through it.
+
+`redraw3D()` is the single entry point for painting `#canvas-3d`: it draws the 3D scene, the tracer (`renderTracer()`), or a trace mode transition frame. The tracer's own `draw()` calls `redraw3D()`, so nothing can paint the wrong mode.
 
 2D polar charts in the edit pane use separate canvases, scaled for devicePixelRatio.
 
@@ -90,14 +92,17 @@ Fixed vertical button strip (top-left). Buttons:
 ### Right Pane
 Slides in from right, pushing the canvas. Contains the Edit Antenna view with three pattern sections (azimuth, elevation XZ, elevation YZ), each with polar chart + controls (paste, paste gain-only, trace, rotate, swap, mirror, delete). Each chart draws the AP model behind the pattern via `drawAPModel()` with a `chartModelProjector()`, at the same scale relative to the pattern as the 3D view (model unit = max gain ring).
 
-### Tracer Overlay
-Each plane's Trace button opens a full-screen overlay (`tracer.js`, merged in from the former standalone Antenna Tracer). Load a datasheet image, align it, set the inner/outer reference circles and their gains, and drag control points along the pattern. **Apply to Plane** writes the result via `setPattern(plane, data)` in `app.js` (shared with clipboard paste) to the active radio/element.
+### Trace Mode
+Each plane's Trace button puts the studio canvas into trace mode (`tracer.js`, merged in from the former standalone Antenna Tracer). Load a datasheet image, align it, set the inner/outer reference circles and their gains, and drag control points along the pattern. **Apply to Plane** writes the result via `setPattern(plane, data)` in `app.js` (shared with clipboard paste) to the active radio/element.
+* There is one canvas (`#canvas-3d`). `openTracer()` loads the plane's trace, then `enterTraceMode()` (app.js) swaps the Edit pane for `#trace-pane`, adds `body.tracing` (hides the toolbar and radio tabs), and animates `traceMode.progress` 0 → 1. Over the first `TRACE_CAMERA_END` of it the camera slerps from the orbit camera to the plane's `chartModelProjector()` rotation at the tracer's scale (`getTracerView()`: one model unit = `AP_PREVIEW_SCALE` trace units), while the 3D layers fade out; then the tracer's layers fade in. The AP model stays solid and lines up exactly at the hand-off. `closeTracer()` stores the trace and `exitTraceMode()` runs the timeline backward.
+* Canvas input goes to the tracer only when `isTracerInteractive()` (fully open, not mid-transition); the 3D drag/wheel handlers ignore the canvas while `traceMode.dataKey` is set.
+* All tracing math is in trace units (a `CANVAS_SIZE` square, crosshair at its center). The view (`chartScale`, zoom, pan) maps trace units to canvas pixels and `getMousePos()` is its exact inverse; `layoutTracer()` fits it to the canvas and resets zoom/pan. Don't change tracing math when changing the view.
 * Tracer angles have 0° at the top of the image, increasing clockwise; studio polar charts have 0° at the top, increasing counter-clockwise. Apply mirrors angles (`(360 − a) mod 360`), so the trace looks the same in the Edit pane chart as on the image. Copy CSV (`C`) keeps raw tracer angles.
 * Each plane keeps its own trace on its element (`element.traces[dataKey]`): the image file (`imageBlob`, `imageFileName`) and its placement, circles/gains, resolution, interpolation, and all points. Opening restores it; closing stores it whether or not it was applied. A plane with no image stores nothing. Swap moves traces with their planes; Delete clears the plane's trace; rotate/mirror/reorient leave traces alone (re-applying a trace overwrites the pattern).
 * Each trace owns its image; images are never shared between planes. The Blob is decoded when the plane's tracer opens.
 * Draw order: image (back), AP model preview (solid, same projector as the plane's Edit pane chart, fixed size: one model unit = `AP_PREVIEW_SCALE` canvas units), circles/crosshair/markers, trace points (front).
 * View > Trace Images (`view3D.showTraceImages`) draws each visible plane's trace image in its plane in the 3D view, oriented as Apply maps it, so datasheets can be checked against the AP model. `drawTraceImage()` (tracer.js) draws it in trace coordinates; `redraw3D()` maps those onto the plane with one affine transform, scaled so the outer reference circle sits on its gain's ring. Images are drawn just behind the AP model with multiply blending (white backgrounds vanish), clipped to the tracer's max trace radius.
-* While open, the tracer's capture-phase key handlers swallow keys so studio hotkeys don't fire; Esc closes it. Its drag/drop handlers stop propagation so the studio's file-import drop doesn't trigger.
+* While open, the tracer's capture-phase key handlers swallow keys so studio hotkeys don't fire; Esc closes it. Its capture-phase window drag/drop handlers stop propagation so the studio's file-import drop doesn't trigger.
 * Example images are in `examples/tracer/`.
 
 ## Project Format (.antstudio)

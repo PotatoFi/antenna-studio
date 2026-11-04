@@ -1,11 +1,16 @@
 // Antenna Tracer — trace a pattern from a datasheet image into a plane.
 //
-// Runs as a full-screen overlay on top of the studio. Everything lives inside
-// this IIFE so the tracer's state (canvas, points, image, ...) can't collide
-// with app.js globals. The only exports are openTracer() / closeTracer().
+// Runs as a mode of the studio canvas (#canvas-3d): app.js's enterTraceMode()
+// turns the camera onto the plane and hands the canvas over, and the tracer's
+// controls replace the Edit pane. Everything lives inside this IIFE so the
+// tracer's state (points, image, ...) can't collide with app.js globals.
 // Results go back through app.js's setPattern(); each plane's tracer state,
 // including its image file, is kept on its element (element.traces) whether
 // or not it was applied.
+//
+// All tracing math is in trace units: a CANVAS_SIZE square with the crosshair
+// at its center. The view (chartScale, zoom, pan) only maps trace units to
+// canvas pixels, and getMousePos() is its exact inverse.
 //
 // Tracer angles put 0° at the top of the image and increase clockwise. The
 // studio's polar charts also put 0° at the top but increase counter-clockwise,
@@ -13,10 +18,8 @@
 // Edit pane chart as it did on the image.
 
 (() => {
-  const overlay = document.getElementById("tracer-overlay");
-  const canvasColumn = document.getElementById("tracer-canvas-column");
   const planeLabel = document.getElementById("tracer-plane-label");
-  const canvas = document.getElementById("tracer-canvas");
+  const canvas = document.getElementById("canvas-3d");
   const ctx = canvas.getContext("2d");
   const imageUpload = document.getElementById("tracer-image-upload");
   const innerGainInput = document.getElementById("tracer-inner-gain");
@@ -44,13 +47,11 @@
   const angleIntervalSelect = document.getElementById("tracer-angle-interval");
   const interpolationSelect = document.getElementById("tracer-interpolation");
 
-  // Plane the overlay was opened for ("azimuth" | "elevation-xz" |
+  // Plane trace mode was opened for ("azimuth" | "elevation-xz" |
   // "elevation-yz"), or null while closed.
   let targetPlane = null;
 
   const CANVAS_SIZE = 2000;
-  canvas.width = CANVAS_SIZE;
-  canvas.height = CANVAS_SIZE;
 
   let image = null;
   let imageFileName = null;
@@ -111,15 +112,11 @@
     return circles[1].radius * MAX_RADIUS_MULTIPLIER;
   }
 
-  function resizeCanvas() {
-    if (!targetPlane) return; // column has no size while the overlay is hidden
-    canvasWidth = canvasColumn.clientWidth;
-    canvasHeight = canvasColumn.clientHeight;
-
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
-    canvas.style.width = `${canvasWidth}px`;
-    canvas.style.height = `${canvasHeight}px`;
+  // Fit the view to the studio canvas (app.js sizes it) and reset zoom/pan.
+  // Called when trace mode opens and when the canvas resizes.
+  function layoutTracer() {
+    canvasWidth = canvas.width;
+    canvasHeight = canvas.height;
 
     chartScale = Math.min(canvasWidth, canvasHeight) / CANVAS_SIZE;
 
@@ -129,26 +126,34 @@
     zoomLevel = 1;
     panX = 0;
     panY = 0;
-    requestAnimationFrame(draw);
   }
-  window.addEventListener("resize", resizeCanvas);
+
+  // Where the tracer draws one AP model unit, for app.js's camera transition
+  function getTracerView() {
+    const k = chartScale * zoomLevel;
+    return {
+      centerX: displayCenterX + panX + (center.x - CANVAS_SIZE / 2) * k,
+      centerY: displayCenterY + panY + (center.y - CANVAS_SIZE / 2) * k,
+      scale: AP_PREVIEW_SCALE * k,
+    };
+  }
 
   canvas.addEventListener("wheel", (e) => {
+    if (!isTracerInteractive()) return;
     e.preventDefault();
     if (e.metaKey || e.ctrlKey) {
+      // Zoom about the mouse: keep the point under it fixed on screen
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left,
-        mouseY = e.clientY - rect.top;
-      const canvasX = (mouseX / rect.width) * CANVAS_SIZE,
-        canvasY = (mouseY / rect.height) * CANVAS_SIZE;
+      const mouseX = e.clientX - rect.left - displayCenterX,
+        mouseY = e.clientY - rect.top - displayCenterY;
       const zoom = Math.exp((-e.deltaY * zoomSensitivity) / 100);
       const newZoomLevel = Math.max(
         minZoom,
         Math.min(zoomLevel * zoom, maxZoom),
       );
       const zoomFactor = newZoomLevel / zoomLevel;
-      panX = canvasX - (canvasX - panX) * zoomFactor;
-      panY = canvasY - (canvasY - panY) * zoomFactor;
+      panX = mouseX - (mouseX - panX) * zoomFactor;
+      panY = mouseY - (mouseY - panY) * zoomFactor;
       zoomLevel = newZoomLevel;
     } else {
       const zoomRange = maxZoom - minZoom;
@@ -164,7 +169,7 @@
   canvas.addEventListener(
     "mousewheel",
     (e) => {
-      e.preventDefault();
+      if (isTracerInteractive()) e.preventDefault();
     },
     { passive: false },
   );
@@ -609,17 +614,28 @@
     ctx.stroke();
   }
 
+  // Repaint the studio canvas. Always goes through app.js's redraw3D(), which
+  // calls renderTracer() only when trace mode is showing the tracer.
   function draw() {
+    redraw3D();
+  }
+
+  // Draw the tracer on the studio canvas. `alpha` fades every layer except
+  // the AP model in, during app.js's trace mode transition.
+  function renderTracer(alpha = 1) {
     ctx.save();
-    ctx.fillStyle = "#F9F9FA";
+    ctx.fillStyle = "#fafafa"; // same as the 3D view, so the hand-off is seamless
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     ctx.translate(displayCenterX + panX, displayCenterY + panY);
     ctx.scale(chartScale * zoomLevel, chartScale * zoomLevel);
     ctx.translate(-CANVAS_SIZE / 2, -CANVAS_SIZE / 2);
 
+    ctx.globalAlpha = alpha;
     drawImage();
+    ctx.globalAlpha = 1;
     drawAPPreview();
+    ctx.globalAlpha = alpha;
     drawCircles();
     drawCrosshair();
     drawAngleMarkers();
@@ -654,19 +670,30 @@
     e.target.value = "";
   });
 
-  // Listen on the whole overlay and stop propagation, so the studio's
-  // document-level handlers don't show their drop overlay or try to import the
-  // image as an antenna pattern file.
-  overlay.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  });
-  overlay.addEventListener("drop", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) setImage(file, file.name);
-  });
+  // While tracing, catch drags on window in the capture phase and stop them,
+  // so the studio's document-level handlers don't show their drop overlay or
+  // try to import the image as an antenna pattern file.
+  window.addEventListener(
+    "dragover",
+    (e) => {
+      if (!targetPlane) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+  window.addEventListener(
+    "drop",
+    (e) => {
+      if (!targetPlane) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isTracerInteractive()) return;
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith("image/")) setImage(file, file.name);
+    },
+    true,
+  );
 
   function getMousePos(e) {
     const rect = canvas.getBoundingClientRect();
@@ -701,8 +728,12 @@
     return closestIndex;
   }
 
+  // Canvas input only applies once trace mode is fully shown; otherwise the
+  // studio's 3D handlers (or nothing, mid-transition) own the canvas.
   canvas.addEventListener("contextmenu", (e) => {
+    if (!targetPlane) return;
     e.preventDefault();
+    if (!isTracerInteractive()) return;
     const clickedIndex = findClickedPointIndex(getMousePos(e), true, false);
     if (clickedIndex >= 0 && controlledPointIndices.size > 2) {
       controlledPointIndices.delete(clickedIndex);
@@ -713,6 +744,7 @@
   });
 
   canvas.addEventListener("mousedown", (e) => {
+    if (!isTracerInteractive()) return;
     if (e.button === 2) return;
     const mousePos = getMousePos(e);
     const clickedPointIndex =
@@ -793,6 +825,7 @@
   });
 
   canvas.addEventListener("mousemove", (e) => {
+    if (!isTracerInteractive()) return;
     if (isZooming) {
       const dy = e.clientY - zoomStart.y,
         distance = Math.abs(dy),
@@ -849,6 +882,7 @@
   });
 
   canvas.addEventListener("mouseup", () => {
+    if (!targetPlane) return;
     if (isZooming) {
       isZooming = false;
       lastZoomTime = Date.now();
@@ -857,6 +891,7 @@
     selectedControlPointIndex = -1;
   });
   canvas.addEventListener("mouseleave", () => {
+    if (!targetPlane) return;
     isMouseDown = false;
     isZooming = false;
     selectedControlPointIndex = -1;
@@ -880,7 +915,7 @@
   }
 
   // Key handlers are registered on window in the capture phase so that, while
-  // the overlay is open, they run before (and hide keys from) the studio's
+  // trace mode is open, they run before (and hide keys from) the studio's
   // document-level hotkeys. While closed they do nothing.
   window.addEventListener(
     "keydown",
@@ -892,6 +927,9 @@
         closeTracer();
         return;
       }
+
+      // No edits mid-transition (a closing trace has already been stored)
+      if (!isTracerInteractive()) return;
 
       // Leave typing and native slider/select arrows alone
       if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
@@ -979,7 +1017,7 @@
       e.stopPropagation();
       if (e.code === "Space") {
         isSpacebarDown = false;
-        canvas.style.cursor = "default";
+        canvas.style.cursor = ""; // back to the stylesheet's cursor
         lockX = undefined;
         lockY = undefined;
       }
@@ -1221,41 +1259,46 @@
 
   // --- Open / close ---
 
-  // Element and plane data key the overlay was opened for. Captured at open
+  // Element and plane data key trace mode was opened for. Captured at open
   // time so the trace is stored back on the right element.
   let targetElement = null;
   let targetDataKey = null;
 
-  // Open the overlay for a plane of the active element, restoring its trace.
+  // Enter trace mode for a plane of the active element, restoring its trace.
+  // Ignored while trace mode is already open or still closing.
   function openTracer(plane) {
+    if (targetPlane) return;
     targetPlane = plane;
     targetElement = getAntennaData();
     targetDataKey = planeToDataKey(plane);
     setTracerState(targetElement.traces[targetDataKey]);
     planeLabel.textContent = TRACER_PLANE_NAMES[plane] || plane;
-    overlay.classList.add("visible");
-    resizeCanvas();
+    layoutTracer();
+    enterTraceMode(targetDataKey);
   }
 
-  // Close the overlay, keeping the trace on its element (applied or not).
+  // Leave trace mode, keeping the trace on its element (applied or not).
   // A plane with no image has nothing worth keeping, so its trace is dropped.
+  // The tracer keeps drawing (fading out) until app.js's transition is done.
   function closeTracer() {
-    if (targetElement) {
-      if (imageBlob) {
-        targetElement.traces[targetDataKey] = getTracerState();
-      } else {
-        delete targetElement.traces[targetDataKey];
-      }
+    if (!targetElement) return; // already closing
+    if (imageBlob) {
+      targetElement.traces[targetDataKey] = getTracerState();
+    } else {
+      delete targetElement.traces[targetDataKey];
     }
-    targetPlane = null;
     targetElement = null;
     targetDataKey = null;
-    overlay.classList.remove("visible");
-    redraw3D(); // the stored trace's image may be shown there
     isMouseDown = false;
     isZooming = false;
     isSpacebarDown = false;
     isBKeyDown = false;
+    selectedControlPointIndex = -1;
+    hoveredPointIndex = -1;
+    canvas.style.cursor = "";
+    exitTraceMode(() => {
+      targetPlane = null;
+    });
   }
 
   const TRACER_PLANE_NAMES = {
@@ -1273,4 +1316,7 @@
   window.openTracer = openTracer;
   window.closeTracer = closeTracer;
   window.drawTraceImage = drawTraceImage;
+  window.renderTracer = renderTracer;
+  window.layoutTracer = layoutTracer;
+  window.getTracerView = getTracerView;
 })();

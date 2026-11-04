@@ -630,44 +630,19 @@ body {
     pointer-events: none;
 }
 
-/* Tracer overlay (tracer.js). Everything is scoped under .tracer-overlay so
-   the tracer's form styling doesn't leak into the studio. Sits below the
-   drop overlay, which the tracer suppresses while open. */
-.tracer-overlay {
+/* Trace mode (tracer.js). The canvas is shared with the 3D view; the tracer's
+   controls are #trace-pane in the right pane, and the studio's tools hide. */
+body.tracing .tool-menu,
+body.tracing .radio-tab-bar {
     display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    background-color: var(--panel-bg);
 }
 
-.tracer-overlay.visible {
-    display: flex;
+body.tracing #canvas-3d,
+body.tracing #canvas-3d:active {
+    cursor: default;
 }
 
-.tracer-canvas-column {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    position: relative;
-    background-color: #f9f9fa;
-}
-
-#tracer-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-}
-
-.tracer-sidebar {
-    width: 330px;
-    flex-shrink: 0;
-    padding: 15px;
-    overflow-y: auto;
-    border-left: 1px solid var(--foreground);
-    box-shadow: -4px 0 8px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
+#trace-pane {
     gap: 10px;
     font-size: 14px;
 }
@@ -706,7 +681,7 @@ body {
     color: var(--header);
 }
 
-.tracer-sidebar h4 {
+#trace-pane h4 {
     margin-top: 10px;
     font-size: 12px;
     color: var(--header);
@@ -751,8 +726,8 @@ body {
     text-align: right;
 }
 
-.tracer-sidebar input[type="number"],
-.tracer-sidebar select {
+#trace-pane input[type="number"],
+#trace-pane select {
     padding: 3px 6px;
     border: 1px solid var(--foreground);
     border-radius: 4px;
@@ -778,7 +753,7 @@ body {
     font-size: 13px;
 }
 
-.tracer-overlay .kbd {
+#trace-pane .kbd {
     display: inline-block;
     padding: 3px 5px;
     font:
