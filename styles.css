@@ -482,8 +482,13 @@ body {
 
 .pattern-controls {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
+}
+
+/* Tighter than the default so all ten buttons fit the pane width */
+.pattern-controls .toolbar-button {
+    padding: 8px 10px;
 }
 
 .pattern-controls .paste-btn {
@@ -623,6 +628,148 @@ body {
     font-size: 18px;
     color: var(--text);
     pointer-events: none;
+}
+
+/* Trace mode (tracer.js). The canvas is shared with the 3D view; the tracer's
+   controls are #trace-pane in the right pane, and the studio's tools hide. */
+body.tracing .tool-menu,
+body.tracing .radio-tab-bar {
+    display: none;
+}
+
+body.tracing #canvas-3d,
+body.tracing #canvas-3d:active {
+    cursor: default;
+}
+
+#trace-pane {
+    gap: 10px;
+    font-size: 14px;
+}
+
+.tracer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.tracer-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+#tracer-plane-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--header);
+}
+
+.tracer-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#tracer-apply {
+    flex: 1;
+}
+
+#tracer-copy-status {
+    display: none;
+    font-size: 12px;
+    color: var(--header);
+}
+
+#trace-pane h4 {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--header);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tracer-input-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.tracer-input-row label {
+    flex: 1;
+}
+
+.tracer-input-row .toolbar-button {
+    flex: 1;
+}
+
+.tracer-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tracer-slider input[type="range"] {
+    width: 100%;
+}
+
+.tracer-slider-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tracer-slider-label input[type="number"] {
+    width: 60px;
+    text-align: right;
+}
+
+#trace-pane input[type="number"],
+#trace-pane select {
+    padding: 3px 6px;
+    border: 1px solid var(--foreground);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 13px;
+    background-color: var(--background);
+    color: var(--text);
+}
+
+.tracer-input-row input[type="number"],
+.tracer-input-row select {
+    width: 80px;
+}
+
+.tracer-input-row select {
+    width: auto;
+    max-width: 170px;
+}
+
+.tracer-controls-list {
+    padding-left: 18px;
+    line-height: 2;
+    font-size: 13px;
+}
+
+#trace-pane .kbd {
+    display: inline-block;
+    padding: 3px 5px;
+    font:
+        11px/1 "SFMono-Regular",
+        Consolas,
+        "Liberation Mono",
+        Menlo,
+        Courier,
+        monospace;
+    color: #444d56;
+    vertical-align: middle;
+    background-color: #fafbfc;
+    border: solid 1px #d1d5da;
+    border-bottom-color: #c6cbd1;
+    border-radius: 3px;
+    box-shadow: inset 0 -1px 0 #c6cbd1;
 }
 
 /* Responsive */

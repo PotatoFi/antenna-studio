@@ -4,12 +4,16 @@
 // A radio can hold multiple elements (e.g. radio chains / radiating elements),
 // each with its own three plane arrays. Gain range and plane visibility are
 // shared at the radio level, so they do not live here.
+// `traces` holds the tracer state (tracer.js) per plane data key, e.g.
+// traces.azimuth = { imageId, points, ... }. Only planes that were traced
+// from an image have an entry; it is saved in .antstudio projects, not CSV.
 function createElement(name) {
   return {
     name: name,
     azimuth: [],
     elevationXZ: [],
     elevationYZ: [],
+    traces: {},
   };
 }
 
@@ -590,6 +594,7 @@ const view3D = {
   showPhiLabels: false,
   showThetaLabels: false,
   showZenithLabels: false,
+  showTraceImages: false,
   downtilt: 0, // Display-only Y-axis rotation (degrees)
   azimuthDirection: 0, // Display-only world Z-axis rotation (degrees)
   roll: 0, // Display-only local Z-axis rotation (degrees)
@@ -601,6 +606,59 @@ let activePane = null;
 // Currently open dropdown menu
 let activeDropdown = null;
 
+// Beamwidth (full width at -3 dB from peak) of a pattern, in degrees.
+// Returns null for empty patterns, 360 if the pattern never falls 3 dB below peak.
+function calculateBeamwidth(points) {
+  if (!points || points.length < 2) return null;
+  const pts = points
+    .map((p) => ({ angle: ((p.angle % 360) + 360) % 360, gain: p.gain }))
+    .sort((a, b) => a.angle - b.angle);
+  const n = pts.length;
+  let peakIdx = 0;
+  for (let i = 1; i < n; i++) if (pts[i].gain > pts[peakIdx].gain) peakIdx = i;
+  const peak = pts[peakIdx];
+  const level = peak.gain - 3;
+
+  // Walk away from the peak in one direction (+1 or -1) to the -3 dB crossing
+  function walk(dir) {
+    let prev = peak;
+    let travelled = 0;
+    for (let step = 1; step <= n; step++) {
+      const cur = pts[(((peakIdx + dir * step) % n) + n) % n];
+      let delta = dir * (cur.angle - prev.angle);
+      delta = ((delta % 360) + 360) % 360;
+      if (cur.gain <= level) {
+        const t = prev.gain === cur.gain ? 0 : (prev.gain - level) / (prev.gain - cur.gain);
+        return travelled + t * delta;
+      }
+      travelled += delta;
+      prev = cur;
+    }
+    return null;
+  }
+
+  const right = walk(1);
+  const left = walk(-1);
+  if (right === null || left === null) return 360;
+  return Math.min(360, right + left);
+}
+
+function logBeamwidths() {
+  const radio = getActiveRadio();
+  const element = getAntennaData();
+  const planes = [
+    ["Azimuth (XY)", "azimuth"],
+    ["Elevation (XZ)", "elevationXZ"],
+    ["Elevation (YZ)", "elevationYZ"],
+  ];
+  console.group(`Beamwidth (-3 dB): ${radio.name || "radio"} / ${element.name || "element"}`);
+  for (const [label, key] of planes) {
+    const bw = calculateBeamwidth(element[key]);
+    console.log(`${label}: ${bw === null ? "no data" : bw.toFixed(1) + "°"}`);
+  }
+  console.groupEnd();
+}
+
 // Radio tab management
 function switchToRadio(index) {
   if (index < 0 || index >= radios.length) return;
@@ -609,6 +667,7 @@ function switchToRadio(index) {
   renderElementTabs();
   syncUIToActiveRadio();
   redrawAll();
+  logBeamwidths();
 }
 
 function syncUIToActiveRadio() {
@@ -741,6 +800,7 @@ function switchToElement(index) {
   renderElementTabs();
   resetReorientControls();
   redrawAll();
+  logBeamwidths();
 }
 
 function addElement(name) {
@@ -891,7 +951,8 @@ function initializeEventListeners() {
     }
   });
 
-  // Import button — opens file dialog
+  // Open button — opens file dialog. Accepts .antstudio projects and CSV
+  // pattern files; openFile() (project.js) tells them apart.
   document.getElementById("import-btn").addEventListener("click", () => {
     document.getElementById("import-file-input").click();
   });
@@ -901,11 +962,14 @@ function initializeEventListeners() {
     .addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => importAntennaFile(ev.target.result);
-      reader.readAsText(file);
+      openFile(file);
       e.target.value = ""; // reset so same file can be re-imported
     });
+
+  // Save project button
+  document
+    .getElementById("save-project-btn")
+    .addEventListener("click", saveProject);
 
   // Drag-and-drop import onto the whole window
   const dropOverlay = document.getElementById("drop-overlay");
@@ -926,9 +990,7 @@ function initializeEventListeners() {
     dropOverlay.classList.remove("visible");
     const file = e.dataTransfer.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => importAntennaFile(ev.target.result);
-    reader.readAsText(file);
+    openFile(file);
   });
 
   // Export button
@@ -954,7 +1016,7 @@ function initializeEventListeners() {
   document.querySelectorAll('input[name="ap-model"]').forEach((radio) => {
     radio.addEventListener("change", (e) => {
       apModel.type = e.target.value;
-      redraw3D();
+      redrawAll(); // the polar charts draw the model too
     });
   });
 
@@ -964,7 +1026,7 @@ function initializeEventListeners() {
     .forEach((radio) => {
       radio.addEventListener("change", (e) => {
         apModel.logoPosition = e.target.value;
-        redraw3D();
+        redrawAll();
       });
     });
 
@@ -1030,6 +1092,13 @@ function initializeEventListeners() {
       } catch (err) {
         console.error("Failed to read clipboard:", err);
       }
+    });
+  });
+
+  // Trace buttons - put the canvas in trace mode (tracer.js) for this plane
+  document.querySelectorAll(".trace-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openTracer(e.currentTarget.dataset.plane);
     });
   });
 
@@ -1106,6 +1175,13 @@ function initializeEventListeners() {
     .getElementById("show-antenna-axes")
     .addEventListener("change", (e) => {
       view3D.showAntennaAxes = e.target.checked;
+      redraw3D();
+    });
+
+  document
+    .getElementById("show-trace-images")
+    .addEventListener("change", (e) => {
+      view3D.showTraceImages = e.target.checked;
       redraw3D();
     });
 
@@ -1211,6 +1287,7 @@ function initializeEventListeners() {
   canvas3d.addEventListener(
     "wheel",
     (e) => {
+      if (traceMode.dataKey) return; // tracer.js handles it
       e.preventDefault();
       // Normalize across deltaMode: pixel (0), line (1), page (2)
       const raw =
@@ -1340,6 +1417,7 @@ function resizeCanvas3D() {
   const rect = canvas.getBoundingClientRect();
   canvas.width = rect.width;
   canvas.height = rect.height;
+  if (traceMode.dataKey) layoutTracer();
   redraw3D();
 }
 
@@ -1394,21 +1472,26 @@ function parseGainColumn(csvText) {
 }
 
 function pastePatternFromClipboard(plane, csvText, gainOnly = false) {
-  const dataKey = planeToDataKey(plane);
   const data = gainOnly ? parseGainColumn(csvText) : parseCSV(csvText);
+  setPattern(plane, data);
+}
 
-  if (data.length > 0) {
-    getAntennaData()[dataKey] = data;
-    // Make sure plane is visible when loading new data
-    getPlaneVisibility()[dataKey] = true;
-    // Update checkbox to reflect visibility
-    const checkboxId = `show-${plane}`;
-    const checkbox = document.getElementById(checkboxId);
-    if (checkbox) {
-      checkbox.checked = true;
-    }
-    redrawAll();
+// Replace a plane's pattern on the active element. Shared by clipboard paste
+// and the tracer (tracer.js).
+function setPattern(plane, data) {
+  if (data.length === 0) return;
+
+  const dataKey = planeToDataKey(plane);
+  getAntennaData()[dataKey] = data;
+  // Make sure plane is visible when loading new data
+  getPlaneVisibility()[dataKey] = true;
+  // Update checkbox to reflect visibility
+  const checkboxId = `show-${plane}`;
+  const checkbox = document.getElementById(checkboxId);
+  if (checkbox) {
+    checkbox.checked = true;
   }
+  redrawAll();
 }
 
 // Apply an affine angle map to a pattern: newAngle = norm(scale * angle + offset).
@@ -1460,11 +1543,17 @@ function swapPatterns(plane1, plane2) {
   const dataKey1 = planeToDataKey(plane1);
   const dataKey2 = planeToDataKey(plane2);
 
-  // Swap the data arrays
+  // Swap the data arrays, and the traces they came from
   const ad = getAntennaData();
   const tempData = ad[dataKey1];
   ad[dataKey1] = ad[dataKey2];
   ad[dataKey2] = tempData;
+
+  const tempTrace = ad.traces[dataKey1];
+  ad.traces[dataKey1] = ad.traces[dataKey2];
+  ad.traces[dataKey2] = tempTrace;
+  if (!ad.traces[dataKey1]) delete ad.traces[dataKey1];
+  if (!ad.traces[dataKey2]) delete ad.traces[dataKey2];
 
   // Enable visibility for the target plane (plane2)
   getPlaneVisibility()[dataKey2] = true;
@@ -1485,6 +1574,7 @@ function deletePattern(plane) {
   if (!confirm("Delete antenna pattern?")) return;
   const dataKey = planeToDataKey(plane);
   getAntennaData()[dataKey] = [];
+  delete getAntennaData().traces[dataKey];
   getPlaneVisibility()[dataKey] = false;
 
   const checkboxId = `show-${plane}`;
@@ -1724,6 +1814,8 @@ async function loadDefaultAntennaData() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const text = await response.text();
     importAntennaFile(text);
+    // The default AP is the starting point, not an unsaved change
+    markProjectClean();
   } catch (err) {
     console.warn(`Could not load default AP data from ${DEFAULT_AP_CSV_PATH}:`, err);
   }
@@ -1776,6 +1868,32 @@ function redrawPolarCharts() {
   drawPolarChart("elevation-yz-chart", ad.elevationYZ, axisColors.x, "Y", "Z", "elevationYZ");
 }
 
+// Projector for drawing the AP model (drawAPModel) onto a 2D polar chart.
+// Model vertices use the 3D view's internal antenna-local axes, where internal
+// X = physical Y and internal Y = physical X (see the pattern drawing in
+// redraw3D). Each chart is an orthographic view in physical axes matching
+// drawPolarChart's labels: azimuth seen from +Z (X up, Y left), XZ from +Y
+// (Z up, X left), YZ from -X (Z up, Y left). Mount type and the display-only
+// orientation sliders are ignored, as they are for the chart patterns.
+// The returned z is depth toward the viewer, used for face sorting and logo
+// culling.
+function chartModelProjector(planeKind, centerX, centerY, scale) {
+  return (localX, localY, localZ) => {
+    const px = localY;
+    const py = localX;
+    const pz = localZ;
+    switch (planeKind) {
+      case "azimuth":
+        return { x: centerX - py * scale, y: centerY - px * scale, z: pz };
+      case "elevationXZ":
+        return { x: centerX - px * scale, y: centerY - pz * scale, z: py };
+      case "elevationYZ":
+      default:
+        return { x: centerX - py * scale, y: centerY - pz * scale, z: -px };
+    }
+  };
+}
+
 // 2D Polar Chart Drawing
 function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind) {
   const canvas = document.getElementById(canvasId);
@@ -1798,6 +1916,17 @@ function drawPolarChart(canvasId, data, color, axis1Label, axis2Label, planeKind
   // Clear canvas - light background
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, width, height);
+
+  // Physical AP behind everything else, at the same size relative to the
+  // pattern as in the 3D view (one model unit = the max gain ring)
+  if (planeKind) {
+    ctx.save();
+    drawAPModel(
+      ctx,
+      chartModelProjector(planeKind, centerX, centerY, maxRadius),
+    );
+    ctx.restore();
+  }
 
   const minGain = getActiveRadio().minGain;
   const maxGain = getActiveRadio().maxGain;
@@ -2194,8 +2323,266 @@ function drawAPLogo(ctx, projectAntennaToScreen, geometry) {
 }
 
 // 3D Rendering
+// Decoded trace images for the 3D view, keyed by Blob. Returns null until the
+// image has loaded; the 3D view redraws once it has.
+const traceImageCache = new WeakMap();
+function getTraceImage(blob) {
+  let img = traceImageCache.get(blob);
+  if (!img) {
+    img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      redraw3D();
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+    traceImageCache.set(blob, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+// --- Camera ---
+//
+// The 3D view is an orthographic projection. A camera is a rotation into view
+// space — (right, down, depth), depth increasing toward the viewer — plus a
+// screen center and a scale (pixels per unit). `local` maps antenna-local
+// coordinates to view space, `world` maps world coordinates. Both are 3x3
+// rotation matrices (arrays of rows).
+
+// Matrix of a linear function f(x, y, z) -> [a, b, c], built from its
+// images of the basis vectors.
+function matrixFromLinear(f) {
+  const cols = [f(1, 0, 0), f(0, 1, 0), f(0, 0, 1)];
+  return [0, 1, 2].map((r) => [cols[0][r], cols[1][r], cols[2][r]]);
+}
+
+function mat3Mul(A, B) {
+  return [0, 1, 2].map((r) =>
+    [0, 1, 2].map(
+      (c) => A[r][0] * B[0][c] + A[r][1] * B[1][c] + A[r][2] * B[2][c],
+    ),
+  );
+}
+
+function mat3Transpose(M) {
+  return [0, 1, 2].map((r) => [M[0][r], M[1][r], M[2][r]]);
+}
+
+// Quaternion [w, x, y, z] of a rotation matrix (Shepperd's method)
+function mat3ToQuat(M) {
+  const tr = M[0][0] + M[1][1] + M[2][2];
+  let q;
+  if (tr > 0) {
+    const s = Math.sqrt(tr + 1) * 2;
+    q = [s / 4, (M[2][1] - M[1][2]) / s, (M[0][2] - M[2][0]) / s, (M[1][0] - M[0][1]) / s];
+  } else if (M[0][0] > M[1][1] && M[0][0] > M[2][2]) {
+    const s = Math.sqrt(1 + M[0][0] - M[1][1] - M[2][2]) * 2;
+    q = [(M[2][1] - M[1][2]) / s, s / 4, (M[0][1] + M[1][0]) / s, (M[0][2] + M[2][0]) / s];
+  } else if (M[1][1] > M[2][2]) {
+    const s = Math.sqrt(1 + M[1][1] - M[0][0] - M[2][2]) * 2;
+    q = [(M[0][2] - M[2][0]) / s, (M[0][1] + M[1][0]) / s, s / 4, (M[1][2] + M[2][1]) / s];
+  } else {
+    const s = Math.sqrt(1 + M[2][2] - M[0][0] - M[1][1]) * 2;
+    q = [(M[1][0] - M[0][1]) / s, (M[0][2] + M[2][0]) / s, (M[1][2] + M[2][1]) / s, s / 4];
+  }
+  return q;
+}
+
+function quatToMat3([w, x, y, z]) {
+  return [
+    [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+    [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+    [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+  ];
+}
+
+function quatSlerp(a, b, t) {
+  let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  if (dot < 0) {
+    b = b.map((v) => -v);
+    dot = -dot;
+  }
+  let wa, wb;
+  if (dot > 0.9995) {
+    wa = 1 - t;
+    wb = t;
+  } else {
+    const theta = Math.acos(dot);
+    const sin = Math.sin(theta);
+    wa = Math.sin((1 - t) * theta) / sin;
+    wb = Math.sin(t * theta) / sin;
+  }
+  const q = a.map((v, i) => wa * v + wb * b[i]);
+  const len = Math.hypot(...q);
+  return q.map((v) => v / len);
+}
+
+// The orbit camera (view3D rotation and zoom). World Z is up on screen at
+// rotationX = 0; antenna-local coordinates go through antennaToWorld().
+function getOrbitCamera(width, height) {
+  const camRotX = (view3D.rotationX * Math.PI) / 180;
+  const camRotY = (view3D.rotationY * Math.PI) / 180;
+  const world = matrixFromLinear((x, y, z) => {
+    // Rotate around world Z axis (horizontal pan)
+    const x1 = x * Math.cos(camRotY) - y * Math.sin(camRotY);
+    const y1 = x * Math.sin(camRotY) + y * Math.cos(camRotY);
+    // Rotate around X axis (vertical tilt)
+    const y2 = y1 * Math.cos(camRotX) - z * Math.sin(camRotX);
+    const z2 = y1 * Math.sin(camRotX) + z * Math.cos(camRotX);
+    // Z maps to screen up; y2 is depth
+    return [x1, -z2, y2];
+  });
+  const antenna = matrixFromLinear((x, y, z) => {
+    const w = antennaToWorld(x, y, z);
+    return [w.x, w.y, w.z];
+  });
+  return {
+    world,
+    local: mat3Mul(world, antenna),
+    antenna,
+    centerX: width / 2,
+    centerY: height / 2,
+    scale: (Math.min(width, height) / 5) * view3D.zoom,
+  };
+}
+
+// The camera that shows a plane exactly as the tracer does: its rotation is
+// the plane's chartModelProjector(), and its center and scale are where the
+// tracer currently draws one AP model unit.
+function getTracerCamera(dataKey) {
+  const project = chartModelProjector(dataKey, 0, 0, 1);
+  const tracerView = getTracerView();
+  return {
+    local: matrixFromLinear((x, y, z) => {
+      const p = project(x, y, z);
+      return [p.x, p.y, p.z];
+    }),
+    centerX: tracerView.centerX,
+    centerY: tracerView.centerY,
+    scale: tracerView.scale,
+  };
+}
+
+// Blend the orbit camera toward the tracer camera (t = 0..1). Rotation is
+// slerped, scale interpolated geometrically, center linearly. World layers
+// keep their relation to the antenna, so they turn with it.
+function blendCameras(orbit, tracer, t) {
+  if (t <= 0) return orbit;
+  const local = quatToMat3(
+    quatSlerp(mat3ToQuat(orbit.local), mat3ToQuat(tracer.local), t),
+  );
+  return {
+    local,
+    world: mat3Mul(local, mat3Transpose(orbit.antenna)),
+    centerX: orbit.centerX + (tracer.centerX - orbit.centerX) * t,
+    centerY: orbit.centerY + (tracer.centerY - orbit.centerY) * t,
+    scale: orbit.scale * Math.pow(tracer.scale / orbit.scale, t),
+  };
+}
+
+// --- Trace mode ---
+//
+// Tracing happens on the studio canvas. Entering trace mode turns the camera
+// onto the plane until it matches the tracer's view, fading the 3D layers
+// out, then fades the tracer's layers in (the AP model stays put throughout,
+// drawn identically by both). Exiting runs the same timeline backward.
+//
+// `progress` runs 0 (studio) .. 1 (tracer). The camera moves over the first
+// TRACE_CAMERA_END of it; the tracer's layers fade in over the rest.
+const TRACE_TRANSITION_MS = 700;
+const TRACE_CAMERA_END = 0.75;
+const traceMode = {
+  dataKey: null, // plane being traced, set from enter until exit finishes
+  progress: 0,
+  target: 0,
+  frame: null,
+  onDone: null,
+};
+
+// True once the tracer is fully shown and should take canvas input
+function isTracerInteractive() {
+  return traceMode.dataKey !== null && traceMode.progress === 1 && traceMode.target === 1;
+}
+
+// Called by tracer.js openTracer() after it has loaded the plane's trace
+function enterTraceMode(dataKey) {
+  traceMode.dataKey = dataKey;
+  closeAllDropdowns();
+  document.body.classList.add("tracing");
+  document.getElementById("edit-pane").classList.remove("visible");
+  document.getElementById("trace-pane").classList.add("visible");
+  animateTraceMode(1, null);
+}
+
+// Called by tracer.js closeTracer(). `onDone` runs once the studio is back.
+function exitTraceMode(onDone) {
+  document.getElementById("trace-pane").classList.remove("visible");
+  document.getElementById("edit-pane").classList.add("visible");
+  animateTraceMode(0, () => {
+    traceMode.dataKey = null;
+    document.body.classList.remove("tracing");
+    if (onDone) onDone();
+    redrawAll();
+  });
+}
+
+function animateTraceMode(target, onDone) {
+  traceMode.target = target;
+  traceMode.onDone = onDone;
+  if (traceMode.frame) return; // the running animation picks up the new target
+  let last = performance.now();
+  const step = (now) => {
+    const delta = (now - last) / TRACE_TRANSITION_MS;
+    last = now;
+    const dir = Math.sign(traceMode.target - traceMode.progress);
+    traceMode.progress = Math.min(1, Math.max(0, traceMode.progress + dir * delta));
+    if ((dir > 0 && traceMode.progress >= traceMode.target) ||
+        (dir < 0 && traceMode.progress <= traceMode.target) || dir === 0) {
+      traceMode.progress = traceMode.target;
+      traceMode.frame = null;
+      redraw3D();
+      const done = traceMode.onDone;
+      traceMode.onDone = null;
+      if (done) done();
+      return;
+    }
+    redraw3D();
+    traceMode.frame = requestAnimationFrame(step);
+  };
+  traceMode.frame = requestAnimationFrame(step);
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// Draw the studio canvas: the 3D scene, the tracer, or a transition frame.
+// Everything that repaints the canvas goes through here (the tracer too), so
+// a stray redraw can never paint the wrong mode.
 function redraw3D() {
   const canvas = document.getElementById("canvas-3d");
+  const p = traceMode.dataKey ? traceMode.progress : 0;
+  if (p > TRACE_CAMERA_END) {
+    renderTracer((p - TRACE_CAMERA_END) / (1 - TRACE_CAMERA_END));
+    return;
+  }
+  let camera = getOrbitCamera(canvas.width, canvas.height);
+  if (p > 0) {
+    camera = blendCameras(
+      camera,
+      getTracerCamera(traceMode.dataKey),
+      easeInOutCubic(p / TRACE_CAMERA_END),
+    );
+  }
+  // 3D layers are gone by the time the camera is halfway there
+  const sceneAlpha = Math.max(0, 1 - p / (TRACE_CAMERA_END / 2));
+  draw3DScene(canvas, camera, sceneAlpha);
+}
+
+// Draw the 3D scene through `camera`. Every layer except the AP model is
+// drawn at `sceneAlpha`.
+function draw3DScene(canvas, camera, sceneAlpha) {
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
@@ -2204,40 +2591,30 @@ function redraw3D() {
   ctx.fillStyle = "#fafafa";
   ctx.fillRect(0, 0, width, height);
 
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const scale = (Math.min(width, height) / 5) * view3D.zoom;
+  ctx.save();
+  ctx.globalAlpha = sceneAlpha;
+
+  const { centerX, centerY, scale } = camera;
 
   const showGroundPlane = document.getElementById("show-ground-plane").checked;
 
-  // Convert camera rotation to radians
-  const camRotX = (view3D.rotationX * Math.PI) / 180;
-  const camRotY = (view3D.rotationY * Math.PI) / 180;
+  function project(M, x, y, z) {
+    return {
+      x: centerX + (M[0][0] * x + M[0][1] * y + M[0][2] * z) * scale,
+      y: centerY + (M[1][0] * x + M[1][1] * y + M[1][2] * z) * scale,
+      z: M[2][0] * x + M[2][1] * y + M[2][2] * z, // depth, toward viewer
+    };
+  }
 
   // Project world coordinates to screen
   // Physics/ISO convention: Z up, X toward viewer (down-left), Y to the right (down-right)
   function projectWorldToScreen(worldX, worldY, worldZ) {
-    // Rotate around world Z axis (horizontal pan)
-    const x1 = worldX * Math.cos(camRotY) - worldY * Math.sin(camRotY);
-    const y1 = worldX * Math.sin(camRotY) + worldY * Math.cos(camRotY);
-    const z1 = worldZ;
-
-    // Rotate around X axis (vertical tilt)
-    const y2 = y1 * Math.cos(camRotX) - z1 * Math.sin(camRotX);
-    const z2 = y1 * Math.sin(camRotX) + z1 * Math.cos(camRotX);
-
-    // Orthographic projection - Z maps to screen Y (inverted)
-    return {
-      x: centerX + x1 * scale,
-      y: centerY - z2 * scale,
-      z: y2, // depth for potential sorting
-    };
+    return project(camera.world, worldX, worldY, worldZ);
   }
 
   // Project antenna-local coordinates to screen
   function projectAntennaToScreen(localX, localY, localZ) {
-    const world = antennaToWorld(localX, localY, localZ);
-    return projectWorldToScreen(world.x, world.y, world.z);
+    return project(camera.local, localX, localY, localZ);
   }
 
   function drawGroundAndAxes() {
@@ -2256,9 +2633,9 @@ function redraw3D() {
       ];
 
       // Fill a light grey top-facing surface only when the camera looks down
-      // onto the plane's top face (normal +Z toward viewer -> sin(camRotX) < 0).
+      // onto the plane's top face (world +Z has depth toward the viewer).
       // When looking up from below, leave it transparent to see through the grid.
-      if (Math.sin(camRotX) < 0) {
+      if (camera.world[2][2] > 0) {
         ctx.fillStyle = "rgba(210, 210, 210, 0.18)";
         ctx.beginPath();
         ctx.moveTo(corners[0].x, corners[0].y);
@@ -2359,16 +2736,6 @@ function redraw3D() {
   const sideY = Math.sin(az);
   const arrowMidDist = 0.8 + 0.2 + 0.08; // axisLength + 0.2 offset + half arrowLen
 
-  // Depth-sort ground plane, arrow, and AP model together (painter's algorithm).
-  // drawAPModel sorts its own faces internally; use the world-origin depth (0) as its sort key.
-  const drawables = [
-    { depth: projectWorldToScreen(0, 0, worldOrientation.groundPlaneZ).z, draw: drawGroundAndAxes },
-    { depth: projectWorldToScreen(fwdX * arrowMidDist, fwdY * arrowMidDist, 0).z, draw: drawAzimuthArrow },
-    { depth: 0, draw: () => drawAPModel(ctx, projectAntennaToScreen) },
-  ];
-  drawables.sort((a, b) => a.depth - b.depth);
-  for (const { draw } of drawables) draw();
-
   const ad = getAntennaData();
   const pv = getPlaneVisibility();
   const radio = getActiveRadio();
@@ -2380,6 +2747,64 @@ function redraw3D() {
   function gainToRadius(gain) {
     return Math.max(0, (gain - minGain) / gainRange);
   }
+
+  // Draw each visible plane's trace image lying in its plane, oriented as the
+  // trace is applied, to check a datasheet against the AP model. The outer
+  // reference circle lands on its gain's ring; other rings only line up when
+  // the image's center gain is Min Gain. Multiply blending drops the images'
+  // white backgrounds.
+  function drawTraceImages() {
+    if (!view3D.showTraceImages) return;
+    // Antenna-local direction of image right (+x) and image down (+y) per plane
+    const planes = [
+      { key: "azimuth", right: [-1, 0, 0], down: [0, -1, 0] },
+      { key: "elevationXZ", right: [0, -1, 0], down: [0, 0, -1] },
+      { key: "elevationYZ", right: [-1, 0, 0], down: [0, 0, -1] },
+    ];
+    const origin = projectAntennaToScreen(0, 0, 0);
+    for (const { key, right, down } of planes) {
+      const trace = ad.traces[key];
+      if (!pv[key] || !trace) continue;
+      const image = getTraceImage(trace.imageBlob);
+      if (!image) continue;
+      // Trace units (tracer canvas pixels) to antenna-local units
+      const k = gainToRadius(trace.outerGain) / trace.outerCircleRadius;
+      if (!(k > 0)) continue;
+      const r = projectAntennaToScreen(right[0] * k, right[1] * k, right[2] * k);
+      const d = projectAntennaToScreen(down[0] * k, down[1] * k, down[2] * k);
+      ctx.save();
+      ctx.globalAlpha = 0.6 * sceneAlpha;
+      ctx.globalCompositeOperation = "multiply";
+      ctx.transform(
+        r.x - origin.x, r.y - origin.y,
+        d.x - origin.x, d.y - origin.y,
+        origin.x, origin.y,
+      );
+      drawTraceImage(ctx, trace, image);
+      ctx.restore();
+    }
+  }
+
+  // Depth-sort ground plane, arrow, and AP model together (painter's algorithm).
+  // drawAPModel sorts its own faces internally; use the world-origin depth (0) as its sort key.
+  // Trace images pass through the model, so they go just behind it.
+  const drawables = [
+    { depth: projectWorldToScreen(0, 0, worldOrientation.groundPlaneZ).z, draw: drawGroundAndAxes },
+    { depth: projectWorldToScreen(fwdX * arrowMidDist, fwdY * arrowMidDist, 0).z, draw: drawAzimuthArrow },
+    {
+      depth: 0,
+      draw: () => {
+        drawTraceImages();
+        // The model stays solid through trace mode transitions
+        ctx.save();
+        ctx.globalAlpha = 1;
+        drawAPModel(ctx, projectAntennaToScreen);
+        ctx.restore();
+      },
+    },
+  ];
+  drawables.sort((a, b) => a.depth - b.depth);
+  for (const { draw } of drawables) draw();
 
   // Draw Azimuth pattern (XY plane in physics coords, Z=0)
   // Rotates around Z axis - use Z color (blue)
@@ -2568,7 +2993,7 @@ function redraw3D() {
   function drawAzimuthArrow() {
     ctx.save();
     ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = sceneAlpha;
 
     const axisLength = 0.8;
     const arrowStart = axisLength + 0.2;
@@ -2600,10 +3025,12 @@ function redraw3D() {
     ctx.restore();
   }
 
+  ctx.restore(); // sceneAlpha
 }
 
-// 3D Mouse interaction
+// 3D Mouse interaction (the tracer handles the canvas in trace mode)
 function start3DDrag(e) {
+  if (traceMode.dataKey) return;
   // Don't start dragging if clicking on UI elements
   if (e.target.closest(".tool-menu") || e.target.closest(".right-pane")) {
     return;
@@ -2900,7 +3327,34 @@ function importAntennaFile(text) {
 
 const ANTENNA_FORMAT_VERSION = 2;
 
+// Download the CSV export. The same text is also written into .antstudio
+// projects as patterns.csv (project.js).
 function exportData() {
+  const blob = new Blob([buildCSVExport()], { type: "text/plain" });
+  downloadBlob(blob, `${getExportBaseName()}.csv`);
+}
+
+// File name (without extension) for exports: the antenna name made
+// filesystem-safe, or a generic fallback.
+function getExportBaseName() {
+  const antennaName = document.getElementById("antenna-name").value.trim();
+  return antennaName
+    ? antennaName.replace(/[^a-z0-9_\-]/gi, "_")
+    : "antenna-pattern";
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function buildCSVExport() {
   let output = "# Antenna Pattern Export\n";
   output += "# Generated by Antenna Studio\n";
   output += `# Format Version,${ANTENNA_FORMAT_VERSION}\n\n`;
@@ -2960,17 +3414,5 @@ function exportData() {
     }
   }
 
-  // Create download
-  const blob = new Blob([output], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const safeName = antennaName
-    ? antennaName.replace(/[^a-z0-9_\-]/gi, "_")
-    : "antenna-pattern";
-  a.download = `${safeName}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  return output;
 }
