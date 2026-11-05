@@ -606,6 +606,59 @@ let activePane = null;
 // Currently open dropdown menu
 let activeDropdown = null;
 
+// Beamwidth (full width at -3 dB from peak) of a pattern, in degrees.
+// Returns null for empty patterns, 360 if the pattern never falls 3 dB below peak.
+function calculateBeamwidth(points) {
+  if (!points || points.length < 2) return null;
+  const pts = points
+    .map((p) => ({ angle: ((p.angle % 360) + 360) % 360, gain: p.gain }))
+    .sort((a, b) => a.angle - b.angle);
+  const n = pts.length;
+  let peakIdx = 0;
+  for (let i = 1; i < n; i++) if (pts[i].gain > pts[peakIdx].gain) peakIdx = i;
+  const peak = pts[peakIdx];
+  const level = peak.gain - 3;
+
+  // Walk away from the peak in one direction (+1 or -1) to the -3 dB crossing
+  function walk(dir) {
+    let prev = peak;
+    let travelled = 0;
+    for (let step = 1; step <= n; step++) {
+      const cur = pts[(((peakIdx + dir * step) % n) + n) % n];
+      let delta = dir * (cur.angle - prev.angle);
+      delta = ((delta % 360) + 360) % 360;
+      if (cur.gain <= level) {
+        const t = prev.gain === cur.gain ? 0 : (prev.gain - level) / (prev.gain - cur.gain);
+        return travelled + t * delta;
+      }
+      travelled += delta;
+      prev = cur;
+    }
+    return null;
+  }
+
+  const right = walk(1);
+  const left = walk(-1);
+  if (right === null || left === null) return 360;
+  return Math.min(360, right + left);
+}
+
+function logBeamwidths() {
+  const radio = getActiveRadio();
+  const element = getAntennaData();
+  const planes = [
+    ["Azimuth (XY)", "azimuth"],
+    ["Elevation (XZ)", "elevationXZ"],
+    ["Elevation (YZ)", "elevationYZ"],
+  ];
+  console.group(`Beamwidth (-3 dB): ${radio.name || "radio"} / ${element.name || "element"}`);
+  for (const [label, key] of planes) {
+    const bw = calculateBeamwidth(element[key]);
+    console.log(`${label}: ${bw === null ? "no data" : bw.toFixed(1) + "°"}`);
+  }
+  console.groupEnd();
+}
+
 // Radio tab management
 function switchToRadio(index) {
   if (index < 0 || index >= radios.length) return;
@@ -614,6 +667,7 @@ function switchToRadio(index) {
   renderElementTabs();
   syncUIToActiveRadio();
   redrawAll();
+  logBeamwidths();
 }
 
 function syncUIToActiveRadio() {
@@ -746,6 +800,7 @@ function switchToElement(index) {
   renderElementTabs();
   resetReorientControls();
   redrawAll();
+  logBeamwidths();
 }
 
 function addElement(name) {
