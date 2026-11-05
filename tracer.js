@@ -931,8 +931,15 @@
       // No edits mid-transition (a closing trace has already been stored)
       if (!isTracerInteractive()) return;
 
-      // Leave typing and native slider/select arrows alone
-      if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+      // Leave typing and select/textarea keys alone. A focused slider only
+      // keeps its native arrow keys, so the other hotkeys still work after
+      // dragging one.
+      const tag = e.target.tagName;
+      if (tag === "SELECT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT") {
+        if (e.target.type !== "range") return;
+        if (e.key.startsWith("Arrow")) return;
+      }
 
       handleTracerKeydown(e);
     },
