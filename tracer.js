@@ -32,6 +32,10 @@
   const yPositionSlider = document.getElementById("tracer-y-position");
   const scaleSlider = document.getElementById("tracer-scale");
   const widthSlider = document.getElementById("tracer-width");
+  const flipHBtn = document.getElementById("tracer-flip-h");
+  const flipVBtn = document.getElementById("tracer-flip-v");
+  const rotateCCWBtn = document.getElementById("tracer-rotate-ccw");
+  const rotateCWBtn = document.getElementById("tracer-rotate-cw");
   const innerCircleSizeSlider = document.getElementById("tracer-inner-circle");
   const outerCircleSizeSlider = document.getElementById("tracer-outer-circle");
   const xPositionValue = document.getElementById("tracer-x-position-value");
@@ -57,6 +61,12 @@
   let imageFileName = null;
   let imageScale = 1;
   let imageWidth = 1;
+  // Display-only orientation about the image's own center; the image file is
+  // untouched. The image is rotated (degrees clockwise, multiple of 90), then
+  // flipped along the screen's axes.
+  let imageRotation = 0;
+  let imageFlipH = false;
+  let imageFlipV = false;
   let center = { x: CANVAS_SIZE / 2, y: CANVAS_SIZE / 2 };
   let canvasWidth = CANVAS_SIZE;
   let canvasHeight = CANVAS_SIZE;
@@ -457,6 +467,8 @@
       ctx.scale(imageWidth, 1);
       ctx.translate(imageX - center.x, imageY - center.y);
       ctx.scale(imageScale, imageScale);
+      ctx.scale(imageFlipH ? -1 : 1, imageFlipV ? -1 : 1);
+      ctx.rotate((imageRotation * Math.PI) / 180);
       ctx.drawImage(image, -image.width / 2, -image.height / 2);
       ctx.restore();
     }
@@ -473,6 +485,8 @@
     ctx.scale(trace.imageWidth / 100, 1);
     ctx.translate(trace.imageX - center.x, trace.imageY - center.y);
     ctx.scale(trace.imageScale / 100, trace.imageScale / 100);
+    ctx.scale(trace.imageFlipH ? -1 : 1, trace.imageFlipV ? -1 : 1);
+    ctx.rotate(((trace.imageRotation || 0) * Math.PI) / 180);
     ctx.drawImage(image, -image.width / 2, -image.height / 2);
     ctx.restore();
   }
@@ -1093,6 +1107,24 @@
   yPositionSlider.addEventListener("input", updateImagePosition);
   scaleSlider.addEventListener("input", updateImageScale);
   widthSlider.addEventListener("input", updateImageWidth);
+  // Rotation is applied before the flips, so with one flip on, the stored
+  // rotation turns the opposite way on screen; compensate so the buttons
+  // always match their arrows.
+  function rotateImage(degreesCW) {
+    const sign = imageFlipH !== imageFlipV ? -1 : 1;
+    imageRotation = (imageRotation + sign * degreesCW + 360) % 360;
+    draw();
+  }
+  rotateCCWBtn.addEventListener("click", () => rotateImage(-90));
+  rotateCWBtn.addEventListener("click", () => rotateImage(90));
+  flipHBtn.addEventListener("click", () => {
+    setImageFlip(!imageFlipH, imageFlipV);
+    draw();
+  });
+  flipVBtn.addEventListener("click", () => {
+    setImageFlip(imageFlipH, !imageFlipV);
+    draw();
+  });
   innerCircleSizeSlider.addEventListener("input", updateInnerCircleSize);
   outerCircleSizeSlider.addEventListener("input", updateOuterCircleSize);
   xPositionValue.addEventListener("input", updateImagePosition);
@@ -1132,6 +1164,12 @@
     imageWidth = parseInt(widthSlider.value) / 100;
     widthValue.value = widthSlider.value;
     draw();
+  }
+  function setImageFlip(flipH, flipV) {
+    imageFlipH = flipH;
+    imageFlipV = flipV;
+    flipHBtn.classList.toggle("blue", flipH);
+    flipVBtn.classList.toggle("blue", flipV);
   }
   function updateInnerCircleSize() {
     circles[0].radius = parseInt(innerCircleSizeSlider.value);
@@ -1188,6 +1226,9 @@
     imageY: CANVAS_SIZE / 2,
     imageScale: 100,
     imageWidth: 100,
+    imageRotation: 0,
+    imageFlipH: false,
+    imageFlipV: false,
     innerCircleRadius: 250,
     outerCircleRadius: 500,
     innerGain: -5,
@@ -1204,6 +1245,9 @@
       imageY,
       imageScale: parseInt(scaleSlider.value),
       imageWidth: parseInt(widthSlider.value),
+      imageRotation,
+      imageFlipH,
+      imageFlipV,
       innerCircleRadius: circles[0].radius,
       outerCircleRadius: circles[1].radius,
       innerGain: parseFloat(innerGainInput.value),
@@ -1252,6 +1296,9 @@
     widthSlider.value = state.imageWidth;
     widthValue.value = state.imageWidth;
     imageWidth = state.imageWidth / 100;
+
+    imageRotation = state.imageRotation;
+    setImageFlip(state.imageFlipH, state.imageFlipV);
 
     if (state.points) {
       controlledPointIndices = new Set(state.controlledPointIndices);
