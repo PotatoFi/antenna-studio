@@ -169,7 +169,7 @@ const apModelDefinitions = {
         type: "bottom",
       });
 
-      return { vertices, faces };
+      return { vertices, faces, convex: true };
     },
   },
   squircle: {
@@ -240,7 +240,7 @@ const apModelDefinitions = {
         type: "bottom",
       });
 
-      return { vertices, faces };
+      return { vertices, faces, convex: true };
     },
   },
   hospitality: {
@@ -2195,9 +2195,48 @@ function drawAPModel(ctx, projectAntennaToScreen) {
   // Sort faces back-to-front (smaller depth = farther away = draw first)
   facesWithDepth.sort((a, b) => a.avgDepth - b.avgDepth);
 
+  // For convex models, average-depth sorting is unreliable for large faces
+  // (e.g. the top/bottom polygons vs. the many thin side quads), so skip
+  // back-facing faces instead; visible faces of a convex solid never overlap.
+  let centroid = null;
+  if (geometry.convex) {
+    centroid = { x: 0, y: 0, z: 0 };
+    for (const v of geometry.vertices) {
+      centroid.x += v.x;
+      centroid.y += v.y;
+      centroid.z += v.z;
+    }
+    centroid.x /= geometry.vertices.length;
+    centroid.y /= geometry.vertices.length;
+    centroid.z /= geometry.vertices.length;
+  }
+  const isBackFace = (face) => {
+    const vs = face.indices.map((i) => geometry.vertices[i]);
+    // Newell's method for the face normal (antenna space, handedness-safe)
+    let nx = 0, ny = 0, nz = 0, fx = 0, fy = 0, fz = 0;
+    for (let i = 0; i < vs.length; i++) {
+      const a = vs[i], b = vs[(i + 1) % vs.length];
+      nx += (a.y - b.y) * (a.z + b.z);
+      ny += (a.z - b.z) * (a.x + b.x);
+      nz += (a.x - b.x) * (a.y + b.y);
+      fx += a.x; fy += a.y; fz += a.z;
+    }
+    fx /= vs.length; fy /= vs.length; fz /= vs.length;
+    // Orient the normal away from the model's centroid
+    if (nx * (fx - centroid.x) + ny * (fy - centroid.y) + nz * (fz - centroid.z) < 0) {
+      nx = -nx; ny = -ny; nz = -nz;
+    }
+    const len = Math.hypot(nx, ny, nz) || 1;
+    const k = 0.01 / len;
+    const p0 = projectAntennaToScreen(fx, fy, fz);
+    const p1 = projectAntennaToScreen(fx + nx * k, fy + ny * k, fz + nz * k);
+    return p1.z < p0.z; // normal points away from viewer
+  };
+
   // Draw faces
   for (const { face } of facesWithDepth) {
     if (face.indices.length < 3) continue;
+    if (centroid && isBackFace(face)) continue;
 
     ctx.beginPath();
     const firstVertex = projectedVertices[face.indices[0]];
