@@ -671,7 +671,8 @@ body.tracing #canvas-3d:active {
     gap: 8px;
 }
 
-#tracer-apply {
+#tracer-apply,
+#tracer-apply-image {
     flex: 1;
 }
 

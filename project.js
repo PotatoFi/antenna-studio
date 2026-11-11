@@ -1,9 +1,9 @@
 // Antenna Studio projects (.antstudio)
 //
 // A project is a ZIP archive:
-//   project.json  — all studio state plus per-plane tracer state (authoritative)
+//   project.json  — all studio state plus per-plane images and traces (authoritative)
 //   patterns.csv  — the regular CSV export, for convenience; ignored on open
-//   images/…      — trace images, original bytes
+//   images/…      — plane images, original bytes
 //
 // The ZIP code below is a minimal reader/writer on top of the browser's
 // built-in CompressionStream / DecompressionStream ("deflate-raw"), so the
@@ -191,14 +191,15 @@ const PROJECT_VIEW_KEYS = [
   "showThetaLabels",
   "showZenithLabels",
   "showTraceImages",
+  "showAPModel",
   "downtilt",
   "azimuthDirection",
   "roll",
 ];
 
-// Build project.json, plus the trace images to store alongside it. Each
-// trace's image is written to its own path (radio, element and plane in the
-// name keep it unique) and the trace refers to it by that path.
+// Build project.json, plus the plane images to store alongside it. Each
+// image layer's file is written to its own path (radio, element and plane in
+// the name keep it unique) and the layer refers to it by that path.
 function serializeProject() {
   const view = {};
   for (const key of PROJECT_VIEW_KEYS) view[key] = view3D[key];
@@ -212,21 +213,22 @@ function serializeProject() {
     planeVisibility: { ...radio.planeVisibility },
     activeElementIndex: radio.activeElementIndex,
     elements: radio.elements.map((el, e) => {
-      const traces = {};
-      for (const [dataKey, trace] of Object.entries(el.traces)) {
-        const { imageBlob, ...rest } = trace;
-        const safeName = trace.imageFileName.replace(/[^a-z0-9._\-]/gi, "_");
+      const images = {};
+      for (const [dataKey, layer] of Object.entries(el.images)) {
+        const { imageBlob, ...rest } = layer;
+        const safeName = layer.imageFileName.replace(/[^a-z0-9._\-]/gi, "_");
         const path = `images/${r + 1}-${e + 1}-${dataKey}-${safeName}`;
         imageFiles.push({ path, blob: imageBlob });
         // imageSize lets the unsaved-changes check notice a replaced image
-        traces[dataKey] = { ...rest, image: path, imageSize: imageBlob.size };
+        images[dataKey] = { ...rest, image: path, imageSize: imageBlob.size };
       }
       return {
         name: el.name,
         azimuth: el.azimuth,
         elevationXZ: el.elevationXZ,
         elevationYZ: el.elevationYZ,
-        traces,
+        images,
+        traces: el.traces,
       };
     }),
   }));
@@ -291,26 +293,26 @@ function cleanPattern(data) {
     .sort((a, b) => a.angle - b.angle);
 }
 
-// Turn saved traces back into live ones: each trace's image path becomes the
-// image Blob. A trace whose image is missing is dropped (the tracer only keeps
-// traces that have an image); its applied pattern is unaffected.
-function restoreTraces(savedTraces, entries) {
-  const traces = {};
-  for (const [dataKey, saved] of Object.entries(savedTraces || {})) {
+// Turn saved image layers back into live ones: each layer's image path
+// becomes the image Blob. A layer whose image is missing is dropped; the
+// plane's trace and pattern are unaffected.
+function restoreImages(savedImages, entries) {
+  const images = {};
+  for (const [dataKey, saved] of Object.entries(savedImages || {})) {
     const data = saved && entries.get(saved.image);
     if (!data) {
-      console.warn(`Trace image ${saved && saved.image} is missing`);
+      console.warn(`Plane image ${saved && saved.image} is missing`);
       continue;
     }
     const { image, imageSize, ...rest } = saved;
     const ext = image.split(".").pop().toLowerCase();
-    traces[dataKey] = {
+    images[dataKey] = {
       ...rest,
       imageFileName: saved.imageFileName || image,
       imageBlob: new Blob([data], { type: IMAGE_TYPES[ext] || "" }),
     };
   }
-  return traces;
+  return images;
 }
 
 const IMAGE_TYPES = {
@@ -354,7 +356,8 @@ async function openProject(bytes) {
         el.azimuth = cleanPattern(savedEl.azimuth);
         el.elevationXZ = cleanPattern(savedEl.elevationXZ);
         el.elevationYZ = cleanPattern(savedEl.elevationYZ);
-        el.traces = restoreTraces(savedEl.traces, entries);
+        el.images = restoreImages(savedEl.images, entries);
+        el.traces = { ...savedEl.traces };
         return el;
       });
     }
@@ -410,6 +413,7 @@ function syncUIFromState() {
     view3D.showZenithLabels;
   document.getElementById("show-trace-images").checked =
     view3D.showTraceImages;
+  document.getElementById("show-ap-model").checked = view3D.showAPModel;
 
   const setSlider = (id, value, label) => {
     document.getElementById(id).value = value;

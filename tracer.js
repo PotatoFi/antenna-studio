@@ -4,9 +4,11 @@
 // turns the camera onto the plane and hands the canvas over, and the tracer's
 // controls replace the Edit pane. Everything lives inside this IIFE so the
 // tracer's state (points, image, ...) can't collide with app.js globals.
-// Results go back through app.js's setPattern(); each plane's tracer state,
-// including its image file, is kept on its element (element.traces) whether
-// or not it was applied.
+// Each plane keeps two independent records on its element: the image layer
+// (element.images: image file, placement, reference circles and gains) and
+// the trace (element.traces: resolution, interpolation, points). Apply Image
+// stores only the image layer; Apply Image and Pattern stores both and writes
+// the pattern through app.js's setPattern(). Closing discards unapplied edits.
 //
 // All tracing math is in trace units: a CANVAS_SIZE square with the crosshair
 // at its center. The view (chartScale, zoom, pan) only maps trace units to
@@ -25,6 +27,8 @@
   const innerGainInput = document.getElementById("tracer-inner-gain");
   const outerGainInput = document.getElementById("tracer-outer-gain");
   const applyBtn = document.getElementById("tracer-apply");
+  const applyImageBtn = document.getElementById("tracer-apply-image");
+  const removeImageBtn = document.getElementById("tracer-remove-image");
   const copyCSVBtn = document.getElementById("tracer-copy-csv");
   const copyStatus = document.getElementById("tracer-copy-status");
   const resetControlPointsBtn = document.getElementById("tracer-reset-points");
@@ -474,19 +478,20 @@
     }
   }
 
-  // Draw a stored trace's image for the studio's 3D view (app.js), in trace
-  // coordinates: tracer canvas units with the origin at the crosshair. Placed
-  // as drawImage() places it, clipped to the tracer's max trace radius.
-  function drawTraceImage(ctx, trace, image) {
+  // Draw a stored plane image (element.images) for the studio's 3D view
+  // (app.js), in trace coordinates: tracer canvas units with the origin at the
+  // crosshair. Placed as drawImage() places it, clipped to the tracer's max
+  // trace radius.
+  function drawTraceImage(ctx, layer, image) {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(0, 0, trace.outerCircleRadius * MAX_RADIUS_MULTIPLIER, 0, 2 * Math.PI);
+    ctx.arc(0, 0, layer.outerCircleRadius * MAX_RADIUS_MULTIPLIER, 0, 2 * Math.PI);
     ctx.clip();
-    ctx.scale(trace.imageWidth / 100, 1);
-    ctx.translate(trace.imageX - center.x, trace.imageY - center.y);
-    ctx.scale(trace.imageScale / 100, trace.imageScale / 100);
-    ctx.scale(trace.imageFlipH ? -1 : 1, trace.imageFlipV ? -1 : 1);
-    ctx.rotate(((trace.imageRotation || 0) * Math.PI) / 180);
+    ctx.scale(layer.imageWidth / 100, 1);
+    ctx.translate(layer.imageX - center.x, layer.imageY - center.y);
+    ctx.scale(layer.imageScale / 100, layer.imageScale / 100);
+    ctx.scale(layer.imageFlipH ? -1 : 1, layer.imageFlipV ? -1 : 1);
+    ctx.rotate(((layer.imageRotation || 0) * Math.PI) / 180);
     ctx.drawImage(image, -image.width / 2, -image.height / 2);
     ctx.restore();
   }
@@ -1071,10 +1076,22 @@
     });
   }
 
-  // Write the trace into the target plane of the active radio/element.
-  // Angles are mirrored into the studio's counter-clockwise convention; gains
-  // are rounded to the same 2 decimals the clipboard export used.
+  // Keep the image layer on the element, leaving the pattern and the stored
+  // trace alone. With no image loaded, this removes the plane's image.
+  applyImageBtn.addEventListener("click", () => {
+    if (!isTracerInteractive()) return;
+    storeImageState();
+    closeTracer();
+  });
+
+  // Keep the image layer and the trace, and write the trace into the target
+  // plane of the active radio/element. Angles are mirrored into the studio's
+  // counter-clockwise convention; gains are rounded to the same 2 decimals the
+  // clipboard export used.
   applyBtn.addEventListener("click", () => {
+    if (!isTracerInteractive()) return;
+    storeImageState();
+    targetElement.traces[targetDataKey] = getTraceState();
     const data = computeTrace().map(({ angle, gain }) => ({
       angle: (360 - angle) % 360,
       gain: parseFloat(gain.toFixed(2)),
@@ -1083,6 +1100,8 @@
     setPattern(targetPlane, data);
     closeTracer();
   });
+
+  removeImageBtn.addEventListener("click", () => setImage(null));
 
   // Clipboard export is kept for use outside the studio, so it keeps the
   // tracer's raw clockwise angles.
@@ -1213,13 +1232,17 @@
     img.src = url;
   }
 
-  // --- Trace state ---
+  // --- Plane state ---
   //
-  // A trace is everything needed to reopen a plane's tracer as it was left:
-  // the image file and its placement, reference circles and gains, resolution,
-  // interpolation and all points. Stored per plane on the element (element.traces[dataKey]).
+  // Each plane keeps two independent records on its element:
+  // - the image layer (element.images[dataKey]): the image file and its
+  //   placement, plus the reference circles and gains that calibrate it. The
+  //   3D view's Trace Images overlay uses only this.
+  // - the trace (element.traces[dataKey]): resolution, interpolation and all
+  //   points, in trace units. It can exist without an image.
+  // Either is stored only when applied; opening restores both.
 
-  const DEFAULT_TRACE = {
+  const DEFAULT_IMAGE = {
     imageBlob: null,
     imageFileName: null,
     imageX: CANVAS_SIZE / 2,
@@ -1233,11 +1256,14 @@
     outerCircleRadius: 500,
     innerGain: -5,
     outerGain: 5,
+  };
+
+  const DEFAULT_TRACE = {
     angleInterval: 1,
     interpolationMethod: "natural-cubic",
   };
 
-  function getTracerState() {
+  function getImageState() {
     return {
       imageBlob,
       imageFileName,
@@ -1252,6 +1278,11 @@
       outerCircleRadius: circles[1].radius,
       innerGain: parseFloat(innerGainInput.value),
       outerGain: parseFloat(outerGainInput.value),
+    };
+  }
+
+  function getTraceState() {
+    return {
       angleInterval,
       interpolationMethod,
       controlledPointIndices: Array.from(controlledPointIndices),
@@ -1260,16 +1291,10 @@
     };
   }
 
-  // Load a saved trace, or a blank one when `saved` is missing. Missing fields
-  // fall back to defaults; missing points are regenerated.
-  function setTracerState(saved) {
-    const state = { ...DEFAULT_TRACE, ...saved };
-
-    angleInterval = state.angleInterval;
-    angleIntervalSelect.value = String(state.angleInterval);
-
-    interpolationMethod = state.interpolationMethod;
-    interpolationSelect.value = state.interpolationMethod;
+  // Load a saved image layer, or none when `saved` is missing. Missing fields
+  // fall back to defaults.
+  function setImageState(saved) {
+    const state = { ...DEFAULT_IMAGE, ...saved };
 
     circles[0].radius = state.innerCircleRadius;
     innerCircleSizeSlider.value = state.innerCircleRadius;
@@ -1300,6 +1325,20 @@
     imageRotation = state.imageRotation;
     setImageFlip(state.imageFlipH, state.imageFlipV);
 
+    setImage(state.imageBlob, state.imageFileName);
+  }
+
+  // Load a saved trace, or a blank one when `saved` is missing. Missing points
+  // are regenerated on the outer circle, so load the image layer first.
+  function setTraceState(saved) {
+    const state = { ...DEFAULT_TRACE, ...saved };
+
+    angleInterval = state.angleInterval;
+    angleIntervalSelect.value = String(state.angleInterval);
+
+    interpolationMethod = state.interpolationMethod;
+    interpolationSelect.value = state.interpolationMethod;
+
     if (state.points) {
       controlledPointIndices = new Set(state.controlledPointIndices);
       breakPointIndices = new Set(state.breakPointIndices);
@@ -1307,40 +1346,44 @@
     } else {
       initializePoints();
     }
+  }
 
-    setImage(state.imageBlob, state.imageFileName);
+  // Store the image layer on the target element; a plane with no image has
+  // no image layer.
+  function storeImageState() {
+    if (imageBlob) {
+      targetElement.images[targetDataKey] = getImageState();
+    } else {
+      delete targetElement.images[targetDataKey];
+    }
   }
 
   // --- Open / close ---
 
   // Element and plane data key trace mode was opened for. Captured at open
-  // time so the trace is stored back on the right element.
+  // time so applied state is stored back on the right element.
   let targetElement = null;
   let targetDataKey = null;
 
-  // Enter trace mode for a plane of the active element, restoring its trace.
-  // Ignored while trace mode is already open or still closing.
+  // Enter trace mode for a plane of the active element, restoring its image
+  // layer and trace. Ignored while trace mode is already open or still closing.
   function openTracer(plane) {
     if (targetPlane) return;
     targetPlane = plane;
     targetElement = getAntennaData();
     targetDataKey = planeToDataKey(plane);
-    setTracerState(targetElement.traces[targetDataKey]);
+    setImageState(targetElement.images[targetDataKey]);
+    setTraceState(targetElement.traces[targetDataKey]);
     planeLabel.textContent = TRACER_PLANE_NAMES[plane] || plane;
     layoutTracer();
     enterTraceMode(targetDataKey);
   }
 
-  // Leave trace mode, keeping the trace on its element (applied or not).
-  // A plane with no image has nothing worth keeping, so its trace is dropped.
-  // The tracer keeps drawing (fading out) until app.js's transition is done.
+  // Leave trace mode. Stores nothing: the Apply buttons store what they apply
+  // before calling this, and anything unapplied is discarded. The tracer keeps
+  // drawing (fading out) until app.js's transition is done.
   function closeTracer() {
     if (!targetElement) return; // already closing
-    if (imageBlob) {
-      targetElement.traces[targetDataKey] = getTracerState();
-    } else {
-      delete targetElement.traces[targetDataKey];
-    }
     targetElement = null;
     targetDataKey = null;
     isMouseDown = false;
@@ -1365,7 +1408,8 @@
     .getElementById("tracer-close")
     .addEventListener("click", closeTracer);
 
-  setTracerState(null);
+  setImageState(null);
+  setTraceState(null);
 
   window.openTracer = openTracer;
   window.closeTracer = closeTracer;

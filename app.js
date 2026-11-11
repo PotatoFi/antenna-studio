@@ -4,15 +4,18 @@
 // A radio can hold multiple elements (e.g. radio chains / radiating elements),
 // each with its own three plane arrays. Gain range and plane visibility are
 // shared at the radio level, so they do not live here.
-// `traces` holds the tracer state (tracer.js) per plane data key, e.g.
-// traces.azimuth = { imageId, points, ... }. Only planes that were traced
-// from an image have an entry; it is saved in .antstudio projects, not CSV.
+// Per plane data key, tracer.js keeps two independent records:
+// `images` (image file, placement, reference circles/gains) and `traces`
+// (resolution, interpolation, points), e.g. images.azimuth, traces.azimuth.
+// Only planes where they were applied have entries; they are saved in
+// .antstudio projects, not CSV.
 function createElement(name) {
   return {
     name: name,
     azimuth: [],
     elevationXZ: [],
     elevationYZ: [],
+    images: {},
     traces: {},
   };
 }
@@ -595,6 +598,7 @@ const view3D = {
   showThetaLabels: false,
   showZenithLabels: false,
   showTraceImages: false,
+  showAPModel: true,
   downtilt: 0, // Display-only Y-axis rotation (degrees)
   azimuthDirection: 0, // Display-only world Z-axis rotation (degrees)
   roll: 0, // Display-only local Z-axis rotation (degrees)
@@ -1186,6 +1190,13 @@ function initializeEventListeners() {
     });
 
   document
+    .getElementById("show-ap-model")
+    .addEventListener("change", (e) => {
+      view3D.showAPModel = e.target.checked;
+      redraw3D();
+    });
+
+  document
     .getElementById("show-phi-labels")
     .addEventListener("change", (e) => {
       view3D.showPhiLabels = e.target.checked;
@@ -1543,17 +1554,19 @@ function swapPatterns(plane1, plane2) {
   const dataKey1 = planeToDataKey(plane1);
   const dataKey2 = planeToDataKey(plane2);
 
-  // Swap the data arrays, and the traces they came from
+  // Swap the data arrays, and the images and traces that go with them
   const ad = getAntennaData();
   const tempData = ad[dataKey1];
   ad[dataKey1] = ad[dataKey2];
   ad[dataKey2] = tempData;
 
-  const tempTrace = ad.traces[dataKey1];
-  ad.traces[dataKey1] = ad.traces[dataKey2];
-  ad.traces[dataKey2] = tempTrace;
-  if (!ad.traces[dataKey1]) delete ad.traces[dataKey1];
-  if (!ad.traces[dataKey2]) delete ad.traces[dataKey2];
+  for (const map of [ad.images, ad.traces]) {
+    const temp = map[dataKey1];
+    map[dataKey1] = map[dataKey2];
+    map[dataKey2] = temp;
+    if (!map[dataKey1]) delete map[dataKey1];
+    if (!map[dataKey2]) delete map[dataKey2];
+  }
 
   // Enable visibility for the target plane (plane2)
   getPlaneVisibility()[dataKey2] = true;
@@ -1574,6 +1587,7 @@ function deletePattern(plane) {
   if (!confirm("Delete antenna pattern?")) return;
   const dataKey = planeToDataKey(plane);
   getAntennaData()[dataKey] = [];
+  // The trace goes with the pattern; the image stays (remove it in the tracer)
   delete getAntennaData().traces[dataKey];
   getPlaneVisibility()[dataKey] = false;
 
@@ -2802,12 +2816,12 @@ function draw3DScene(canvas, camera, sceneAlpha) {
     ];
     const origin = projectAntennaToScreen(0, 0, 0);
     for (const { key, right, down } of planes) {
-      const trace = ad.traces[key];
-      if (!pv[key] || !trace) continue;
-      const image = getTraceImage(trace.imageBlob);
+      const layer = ad.images[key];
+      if (!pv[key] || !layer) continue;
+      const image = getTraceImage(layer.imageBlob);
       if (!image) continue;
       // Trace units (tracer canvas pixels) to antenna-local units
-      const k = gainToRadius(trace.outerGain) / trace.outerCircleRadius;
+      const k = gainToRadius(layer.outerGain) / layer.outerCircleRadius;
       if (!(k > 0)) continue;
       const r = projectAntennaToScreen(right[0] * k, right[1] * k, right[2] * k);
       const d = projectAntennaToScreen(down[0] * k, down[1] * k, down[2] * k);
@@ -2819,7 +2833,7 @@ function draw3DScene(canvas, camera, sceneAlpha) {
         d.x - origin.x, d.y - origin.y,
         origin.x, origin.y,
       );
-      drawTraceImage(ctx, trace, image);
+      drawTraceImage(ctx, layer, image);
       ctx.restore();
     }
   }
@@ -2834,9 +2848,10 @@ function draw3DScene(canvas, camera, sceneAlpha) {
       depth: 0,
       draw: () => {
         drawTraceImages();
-        // The model stays solid through trace mode transitions
+        // The model stays solid through trace mode transitions. When hidden
+        // in the 3D view it fades in instead, to meet the tracer's preview.
         ctx.save();
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = view3D.showAPModel ? 1 : 1 - sceneAlpha;
         drawAPModel(ctx, projectAntennaToScreen);
         ctx.restore();
       },
