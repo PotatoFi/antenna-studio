@@ -155,11 +155,18 @@
 
                     <div class="tracer-actions">
                         <button
+                            class="toolbar-button"
+                            id="tracer-apply-image"
+                            title="Keep the image, its placement and reference circles; leave the pattern unchanged"
+                        >
+                            Apply Image
+                        </button>
+                        <button
                             class="toolbar-button blue"
                             id="tracer-apply"
-                            title="Replace this plane's pattern with the trace"
+                            title="Keep the image and replace this plane's pattern with the trace"
                         >
-                            Apply to Plane
+                            Apply Image and Pattern
                         </button>
                         <button
                             class="toolbar-button"
@@ -237,8 +244,8 @@
                         </div>
                         <input type="range" id="tracer-y-position" min="0" max="2000" value="1000" />
                     </div>
-                    <button class="toolbar-button" id="tracer-reset-points">
-                        Reset Control Points
+                    <button class="toolbar-button" id="tracer-remove-image">
+                        Remove Image
                     </button>
 
                     <h4>Labels</h4>
@@ -264,6 +271,8 @@
                         <label for="tracer-inner-gain">Inner Circle Gain (dBi)</label>
                         <input type="number" id="tracer-inner-gain" value="-5" />
                     </div>
+
+                    <h4>Trace</h4>
                     <div class="tracer-input-row">
                         <label for="tracer-angle-interval">Resolution</label>
                         <select id="tracer-angle-interval">
@@ -284,6 +293,9 @@
                             <option value="straight">Straight Linear</option>
                         </select>
                     </div>
+                    <button class="toolbar-button" id="tracer-reset-points">
+                        Reset Control Points
+                    </button>
 
                     <h4>Controls</h4>
                     <ul class="tracer-controls-list">
@@ -574,6 +586,10 @@
                     <label>
                         <input type="checkbox" id="show-trace-images" />
                         Trace Images
+                    </label>
+                    <label>
+                        <input type="checkbox" id="show-ap-model" checked />
+                        AP Model
                     </label>
                     <h4>Gain Range</h4>
                     <div class="slider-row">
